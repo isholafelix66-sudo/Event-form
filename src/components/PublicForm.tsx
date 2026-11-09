@@ -727,6 +727,60 @@ export const PublicForm: React.FC<PublicFormProps> = ({
           </div>
         </form>
 
+        {/* Existing Registrant Portal Quick Access Box */}
+        <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-3xl p-6 sm:p-7 shadow-lg space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <span className="inline-block px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 text-[10px] font-bold uppercase tracking-wider mb-1">
+                Already Registered?
+              </span>
+              <h3 className="text-base font-black tracking-tight text-white">
+                Register a Child or Manage Your Pass
+              </h3>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Enter your unique Registration Code (e.g. EVT-2026-XXXX) to open your dashboard and add a child.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                window.location.hash = 'portal';
+              }}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs font-bold transition cursor-pointer shrink-0"
+            >
+              <span>Open Full Portal</span>
+            </button>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const inputEl = (e.currentTarget.elements.namedItem('quickCode') as HTMLInputElement);
+              const code = inputEl?.value?.trim().toUpperCase();
+              if (code) {
+                window.location.hash = `portal`;
+                // Store in session storage so portal auto-loads or we can navigate via hash
+                sessionStorage.setItem('eventform_quick_code', code);
+              }
+            }}
+            className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-700/60"
+          >
+            <input
+              type="text"
+              name="quickCode"
+              placeholder="Enter Registration Code (e.g. EVT-2026-X7K9)"
+              className="flex-1 px-4 py-2.5 text-xs bg-slate-800 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              required
+            />
+            <button
+              type="submit"
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm shrink-0"
+            >
+              Enter Dashboard
+            </button>
+          </form>
+        </div>
+
         {/* Public Footer */}
         <div className="text-center py-6 text-xs text-gray-400">
           <p>Powered by EventForm • Official Event Registration</p>

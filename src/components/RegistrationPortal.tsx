@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FormResponse, EventForm } from '../types';
 import { dbService } from '../services/db';
 import { TicketPass } from './TicketPass';
@@ -14,7 +14,8 @@ import {
   Trash2,
   RefreshCw,
   QrCode,
-  ArrowLeft
+  ArrowLeft,
+  Share2
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import confetti from 'canvas-confetti';
@@ -38,10 +39,22 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   const [depName, setDepName] = useState('');
   const [depEmail, setDepEmail] = useState('');
   const [depPhone, setDepPhone] = useState('');
+  const [depChurch, setDepChurch] = useState('');
   const [isSubmittingDep, setIsSubmittingDep] = useState(false);
+  const [showShareLinkModal, setShowShareLinkModal] = useState(false);
 
   // Selected Dependent Ticket Modal State
   const [viewingTicketResponse, setViewingTicketResponse] = useState<FormResponse | null>(null);
+
+  useEffect(() => {
+    const quickCode = sessionStorage.getItem('eventform_quick_code');
+    if (quickCode) {
+      sessionStorage.removeItem('eventform_quick_code');
+      setAccessCode(quickCode);
+      // Trigger login automatically
+      performLogin(quickCode);
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +63,10 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
       showToast('Please enter your unique Registration Code.', 'error');
       return;
     }
+    await performLogin(code);
+  };
 
+  const performLogin = async (code: string) => {
     setLoading(true);
     try {
       // Find main registrant by reference code
@@ -95,19 +111,29 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
     if (!mainRegistrant || !eventForm) return;
 
     if (!depName.trim() || !depEmail.trim()) {
-      showToast('Please enter at least a Full Name and Email for the additional attendee.', 'error');
+      showToast('Please enter at least a Full Name and Email for the child.', 'error');
       return;
     }
 
     setIsSubmittingDep(true);
     try {
-      const depAnswers = {
+      const churchVal = depChurch.trim() || mainRegistrant.answers?.['Church / Ministry'] || '';
+
+      const depAnswers: Record<string, any> = {
         'Full Name': depName.trim(),
         'Email': depEmail.trim(),
         'Phone': depPhone.trim(),
+        'Church / Ministry': churchVal,
         'Main Registrant Parent': mainRegistrant.reference,
-        'Registration Type': 'Dependent / Additional Attendee',
+        'Registration Type': 'Child / Dependent',
       };
+
+      const churchQuestion = eventForm.questions.find(
+        (q) => q.title.toLowerCase().includes('church') || q.title.toLowerCase().includes('ministry')
+      );
+      if (churchQuestion) {
+        depAnswers[churchQuestion.id] = churchVal;
+      }
 
       const { response: newDep } = await dbService.submitResponse(eventForm, depAnswers);
 
@@ -120,16 +146,17 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
       setDepName('');
       setDepEmail('');
       setDepPhone('');
+      setDepChurch('');
 
       confetti({
         particleCount: 75,
         spread: 60,
       });
 
-      showToast(`Successfully registered ${newDep.fullName} under your account!`, 'success');
+      showToast(`Successfully registered child ${newDep.fullName} under your account!`, 'success');
     } catch (err) {
-      console.error('Failed to add dependent:', err);
-      showToast('Failed to register additional attendee.', 'error');
+      console.error('Failed to add child:', err);
+      showToast('Failed to register child.', 'error');
     } finally {
       setIsSubmittingDep(false);
     }
@@ -240,13 +267,23 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
                 </p>
               </div>
 
-              <button
-                onClick={() => setShowAddDependentModal(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" />
-                Add Child
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowShareLinkModal(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Send Child Registration Link</span>
+                </button>
+
+                <button
+                  onClick={() => setShowAddDependentModal(true)}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Add Child
+                </button>
+              </div>
             </div>
 
             {dependents.length === 0 ? (
@@ -359,6 +396,19 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
                   />
                 </div>
 
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Church / Ministry Affiliation
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Grace Chapel (defaults to parent)"
+                    value={depChurch}
+                    onChange={(e) => setDepChurch(e.target.value)}
+                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
+                  />
+                </div>
+
                 <div className="pt-2 flex gap-3">
                   <button
                     type="button"
@@ -377,6 +427,71 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Share Child Registration Link Modal */}
+        {showShareLinkModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-100 space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2 text-indigo-600">
+                  <Share2 className="w-5 h-5" />
+                  <h3 className="text-lg font-black text-slate-900">Child Registration Link</h3>
+                </div>
+                <button
+                  onClick={() => setShowShareLinkModal(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 cursor-pointer font-bold text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs text-slate-600">
+                <p className="leading-relaxed">
+                  Share this registration link with your child or family member. When they register using this link or portal code <strong className="font-mono text-indigo-600">{mainRegistrant.reference}</strong>, they will be automatically linked under your account as a child attendee.
+                </p>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Direct Portal Link
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${window.location.origin}/#portal`}
+                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-800 select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const linkText = `${window.location.origin}/#portal (Parent Code: ${mainRegistrant.reference})`;
+                        navigator.clipboard.writeText(linkText);
+                        showToast('Registration link & parent code copied to clipboard!', 'success');
+                      }}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition cursor-pointer shrink-0"
+                    >
+                      Copy Link
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
+                  💡 Tip: Your registration code is <strong className="font-mono">{mainRegistrant.reference}</strong>. Your church/ministry affiliation (<span className="font-semibold">{mainRegistrant.answers?.['Church / Ministry'] || 'General'}</span>) will be automatically applied to children you register.
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowShareLinkModal(false)}
+                  className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         )}
