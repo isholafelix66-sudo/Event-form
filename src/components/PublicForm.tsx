@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { EventForm, Question, FormResponse } from '../types';
 import { dbService } from '../services/db';
 import { TicketPass } from './TicketPass';
+import { DaysToEventCounter } from './DaysToEventCounter';
 import confetti from 'canvas-confetti';
 import {
   Calendar,
@@ -310,6 +311,9 @@ export const PublicForm: React.FC<PublicFormProps> = ({
               >
                 Official Event Registration
               </span>
+              {form.eventDate && (
+                <DaysToEventCounter eventDate={form.eventDate} variant="header" />
+              )}
               <span className="text-xs text-gray-400 font-semibold flex items-center gap-1 ml-auto">
                 <ShieldCheck className="w-4 h-4 text-emerald-500" />
                 Verified Pass

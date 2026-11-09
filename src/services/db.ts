@@ -931,25 +931,39 @@ class DatabaseService {
   }
 
   // SMTP Settings
-  getSMTPSettings(): SMTPSettings {
+  async getSMTPSettings(): Promise<SMTPSettings> {
+    try {
+      const docRef = doc(db, 'settings', 'smtp');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) return docSnap.data() as SMTPSettings;
+    } catch (e) {
+      console.error('Failed to fetch SMTP settings from Firestore', e);
+    }
+
+    // Fallback to local storage if Firestore fetch fails
     try {
       const data = localStorage.getItem(LOCAL_SMTP_KEY);
       if (data) return JSON.parse(data);
     } catch (e) {}
 
     return {
-      host: 'smtp.gmail.com',
+      host: '',
       port: 587,
-      user: 'isholafelix609@gmail.com',
-      pass: '••••••••••••••••',
-      fromName: 'EventForm Notifications',
-      fromEmail: 'isholafelix609@gmail.com',
-      enabled: true,
+      user: '',
+      pass: '',
+      fromName: '',
+      fromEmail: '',
+      enabled: false,
     };
   }
 
-  saveSMTPSettings(settings: SMTPSettings): void {
+  async saveSMTPSettings(settings: SMTPSettings): Promise<void> {
     localStorage.setItem(LOCAL_SMTP_KEY, JSON.stringify(settings));
+    try {
+      await setDoc(doc(db, 'settings', 'smtp'), cleanForFirestore(settings));
+    } catch (e) {
+      console.error('Failed to save SMTP settings to Firestore', e);
+    }
   }
 
   // Real-time Live Subscriptions (Across all roles)

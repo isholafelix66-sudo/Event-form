@@ -18,6 +18,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { DaysToEventCounter } from './DaysToEventCounter';
 import { UserRole } from '../types';
 
 interface FormsListProps {
@@ -244,6 +245,11 @@ export const FormsList: React.FC<FormsListProps> = ({
                             year: 'numeric',
                           })}
                         </span>
+                      </div>
+                    )}
+                    {form.eventDate && new Date(form.eventDate).getTime() > Date.now() && (
+                      <div className="mt-1">
+                        <DaysToEventCounter eventDate={form.eventDate} compact={true} />
                       </div>
                     )}
                     {form.eventLocation && (

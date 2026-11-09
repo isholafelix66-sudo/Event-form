@@ -22,6 +22,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { DaysToEventCounter } from './DaysToEventCounter';
 
 interface DashboardOverviewProps {
   onCreateForm: () => void;
@@ -301,6 +302,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         </span>
                         <span>{f.questions.length} questions</span>
                       </div>
+                      {f.eventDate && new Date(f.eventDate).getTime() > Date.now() && (
+                        <div className="pt-1">
+                          <DaysToEventCounter eventDate={f.eventDate} compact={true} />
+                        </div>
+                      )}
                     </div>
                   </div>
 

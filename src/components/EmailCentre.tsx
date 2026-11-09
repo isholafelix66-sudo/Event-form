@@ -20,7 +20,15 @@ export const EmailCentre: React.FC = () => {
   const [forms, setForms] = useState<EventForm[]>([]);
   const [responses, setResponses] = useState<FormResponse[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
-  const [smtpSettings, setSmtpSettings] = useState<SMTPSettings>(dbService.getSMTPSettings());
+  const [smtpSettings, setSmtpSettings] = useState<SMTPSettings>({
+    host: '',
+    port: 587,
+    user: '',
+    pass: '',
+    fromName: '',
+    fromEmail: '',
+    enabled: false,
+  });
 
   // Composer state
   const [recipientAudience, setRecipientAudience] = useState<'all' | 'form_specific' | 'unattended'>('form_specific');
@@ -42,10 +50,12 @@ export const EmailCentre: React.FC = () => {
       dbService.getForms(),
       dbService.getResponses(),
       dbService.getEmailLogs(),
-    ]).then(([f, r, l]) => {
+      dbService.getSMTPSettings(),
+    ]).then(([f, r, l, smtp]) => {
       setForms(f);
       setResponses(r);
       setEmailLogs(l);
+      setSmtpSettings(smtp);
       if (f.length > 0) {
         setSelectedFormId(f[0].id);
       }
@@ -130,14 +140,34 @@ export const EmailCentre: React.FC = () => {
 
   const handleSendTestEmail = async () => {
     setTestEmailSending(true);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    setTestEmailSending(false);
-    const testMsg = `Test message dispatched successfully to ${smtpSettings.fromEmail}`;
-    setStatusMessage({
-      type: 'success',
-      text: testMsg,
-    });
-    showToast(testMsg, 'success');
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: smtpSettings.fromEmail, // Send test to self
+          subject: 'Test Email from EventForm',
+          html: '<p>This is a test email from EventForm.</p>',
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to send');
+
+      const testMsg = `Test message dispatched successfully to ${smtpSettings.fromEmail}`;
+      setStatusMessage({
+        type: 'success',
+        text: testMsg,
+      });
+      showToast(testMsg, 'success');
+    } catch (err) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Failed to deliver emails. Please check email delivery settings.',
+      });
+      showToast('Failed to deliver emails. Please check email delivery settings.', 'error');
+    } finally {
+      setTestEmailSending(false);
+    }
   };
 
   const handleSaveSMTP = (e: React.FormEvent) => {
