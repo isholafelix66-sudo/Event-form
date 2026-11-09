@@ -64,6 +64,7 @@ export interface FormResponse {
   agentId?: string;
   agentName?: string;
   status: ResponseStatus;
+  parent_registration_id?: string; // If set, this is a dependent/additional registrant linked to a main registrant
   createdAt: string;
 }
 

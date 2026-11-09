@@ -11,6 +11,7 @@ import { CheckInScanner } from './components/CheckInScanner';
 import { EmailCentre } from './components/EmailCentre';
 import { SettingsView } from './components/SettingsView';
 import { PublicForm } from './components/PublicForm';
+import { RegistrationPortal } from './components/RegistrationPortal';
 import { NotFoundPage } from './components/NotFoundPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -109,6 +110,13 @@ function AppContent() {
     ) {
       setCurrentRole('checkin_officer');
       setCurrentTab('checkin');
+      return;
+    }
+
+    // Portal Route: #portal or /portal -> Registrant Portal
+    if (path === '/portal' || hash === '#portal') {
+      setPublicFormSlug(null);
+      setIsNotFound(false);
       return;
     }
 
@@ -241,6 +249,17 @@ function AppContent() {
   // 1. PUBLIC FORM VIEW: Render public event registration page
   if (publicFormSlug) {
     return <PublicForm slugOrId={publicFormSlug} />;
+  }
+
+  // 1.5 REGISTRANT PORTAL VIEW: Render portal if hash is #portal or pathname is /portal
+  if (typeof window !== 'undefined' && (window.location.hash.toLowerCase() === '#portal' || window.location.pathname.toLowerCase() === '/portal')) {
+    return (
+      <RegistrationPortal
+        onBackToHome={() => {
+          window.location.hash = 'f=worship-encounter-3';
+        }}
+      />
+    );
   }
 
   // 2. 404 PAGE NOT FOUND: Root "/" without event identifier or invalid URLs

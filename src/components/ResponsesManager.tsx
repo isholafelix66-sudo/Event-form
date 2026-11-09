@@ -419,6 +419,51 @@ export const ResponsesManager: React.FC<ResponsesManagerProps> = ({
               />
             </div>
 
+            {/* Linked Dependents / Additional Attendees Expansion */}
+            {(() => {
+              const dependentsList = responses.filter(
+                (r) => r.parent_registration_id === selectedResponse.reference || r.parent_registration_id === selectedResponse.id
+              );
+              const totalCount = 1 + dependentsList.length;
+
+              return (
+                <div className="bg-indigo-50/60 border border-indigo-100 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider">
+                        Linked Attendees ({totalCount} Total under Main Registrant)
+                      </h4>
+                      <p className="text-[11px] text-indigo-700">
+                        Primary registrant and associated family members or guests.
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-full text-[10px] font-bold">
+                      {totalCount} Attendees
+                    </span>
+                  </div>
+
+                  {dependentsList.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-indigo-200/60">
+                      {dependentsList.map((dep, dIdx) => (
+                        <div key={dep.id} className="bg-white p-3 rounded-xl border border-indigo-100 flex items-center justify-between text-xs">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-indigo-600">{dep.reference}</span>
+                              <span className="font-bold text-gray-900">Guest #{dIdx + 1}: {dep.fullName}</span>
+                            </div>
+                            <div className="text-[11px] text-gray-500">{dep.email} {dep.phone ? `• ${dep.phone}` : ''}</div>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">
+                            {dep.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Complete Answers List */}
             <div>
               <h3 className="text-sm font-black text-gray-900 mb-3">Submitted Answers</h3>

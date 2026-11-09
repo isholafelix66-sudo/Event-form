@@ -728,6 +728,26 @@ class DatabaseService {
     }
   }
 
+  async getResponseById(responseId: string): Promise<FormResponse | null> {
+    const responses = await this.getResponses();
+    return responses.find((r) => r.id === responseId) || null;
+  }
+
+  async updateResponseParent(responseId: string, parentReference: string): Promise<void> {
+    const resp = this.localResponses.find((r) => r.id === responseId);
+    if (resp) {
+      resp.parent_registration_id = parentReference;
+      localStorage.setItem(LOCAL_RESPONSES_KEY, JSON.stringify(this.localResponses));
+      try {
+        await updateDoc(doc(db, 'responses', responseId), {
+          parent_registration_id: parentReference,
+        });
+      } catch (e) {
+        console.warn('Firestore updateResponseParent sync:', e);
+      }
+    }
+  }
+
   async getResponseByReference(reference: string): Promise<FormResponse | null> {
     const responses = await this.getResponses();
     const cleanRef = reference.trim().toUpperCase();
