@@ -317,6 +317,7 @@ function AppContent() {
                 <BulkRegistration
                   currentAgentName="Registration Agent"
                   currentAgentId="agent-1"
+                  onViewResponses={handleViewResponsesForForm}
                 />
               )}
             </>
@@ -396,6 +397,7 @@ function AppContent() {
                 <BulkRegistration
                   currentAgentName="Admin Agent"
                   currentAgentId="admin-1"
+                  onViewResponses={handleViewResponsesForForm}
                 />
               )}
 

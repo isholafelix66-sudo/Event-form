@@ -102,6 +102,14 @@ export const ResponsesManager: React.FC<ResponsesManagerProps> = ({
     showToast(`Purged ${count} responses for "${targetForm?.title}"`, 'info');
   };
 
+  const getChurchName = (r: FormResponse) => {
+    if (r.answers && r.answers['Church / Ministry']) return r.answers['Church / Ministry'];
+    const match = Object.entries(r.answers || {}).find(
+      ([k, v]) => k.toLowerCase().includes('church') || k.toLowerCase().includes('ministry')
+    );
+    return (match?.[1] as string) || '';
+  };
+
   // Export to CSV
   const handleExportCSV = () => {
     const dataToExport = filteredResponses;
@@ -116,6 +124,7 @@ export const ResponsesManager: React.FC<ResponsesManagerProps> = ({
       'Full Name',
       'Email',
       'Phone',
+      'Church / Ministry',
       'Status',
       'Checked In',
       'Checked In At',
@@ -129,6 +138,7 @@ export const ResponsesManager: React.FC<ResponsesManagerProps> = ({
       `"${getAttendeeName(r).replace(/"/g, '""')}"`,
       `"${r.email}"`,
       `"${r.phone || ''}"`,
+      `"${getChurchName(r).replace(/"/g, '""')}"`,
       `"${r.status}"`,
       `"${r.checkedIn ? 'Yes' : 'No'}"`,
       `"${r.checkedInAt || ''}"`,
@@ -156,10 +166,12 @@ export const ResponsesManager: React.FC<ResponsesManagerProps> = ({
   const filteredResponses = responses.filter((r) => {
     const matchesForm = selectedFormId === 'all' || r.formId === selectedFormId;
     const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+    const churchVal = getChurchName(r).toLowerCase();
     const matchesSearch =
       r.fullName.toLowerCase().includes(search.toLowerCase()) ||
       r.email.toLowerCase().includes(search.toLowerCase()) ||
       (r.phone && r.phone.toLowerCase().includes(search.toLowerCase())) ||
+      churchVal.includes(search.toLowerCase()) ||
       r.reference.toLowerCase().includes(search.toLowerCase());
 
     return matchesForm && matchesStatus && matchesSearch;
