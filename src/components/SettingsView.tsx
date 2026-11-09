@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/db';
-import { UserRole, SiteSettings } from '../types';
+import { UserRole, SiteSettings, SMTPSettings } from '../types';
 import {
   ShieldCheck,
   Database,
@@ -14,6 +14,8 @@ import {
   ToggleLeft,
   ToggleRight,
   CheckCircle2,
+  AlertCircle,
+  Send,
   Save,
   UploadCloud,
   RotateCcw,
@@ -51,9 +53,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [formData, setFormData] = useState<SiteSettings>(siteSettings);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Dedicated SMTP Configuration module state
+  const [smtpSettings, setSmtpSettings] = useState<SMTPSettings>({
+    host: 'smtp.gmail.com',
+    port: 587,
+    user: '',
+    pass: '',
+    fromName: 'Event Notifications',
+    fromEmail: '',
+    enabled: true,
+  });
+  const [smtpSaving, setSmtpSaving] = useState(false);
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [smtpStatus, setSmtpStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   useEffect(() => {
     setFormData(siteSettings);
   }, [siteSettings]);
+
+  useEffect(() => {
+    dbService.getSMTPSettings().then((settings) => {
+      setSmtpSettings(settings);
+    });
+  }, []);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +84,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     onSaveSiteSettings(updated);
     setIsSaving(false);
     showToast('Website and branding settings updated across the platform!', 'success');
+  };
+
+  const handleSaveSMTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSmtpSaving(true);
+    setSmtpStatus(null);
+    try {
+      await dbService.saveSMTPSettings(smtpSettings);
+      setSmtpStatus({ type: 'success', text: 'Email delivery credentials saved securely!' });
+      showToast('Email delivery settings saved successfully!', 'success');
+    } catch (err: any) {
+      setSmtpStatus({ type: 'error', text: err?.message || 'Failed to save email settings.' });
+      showToast('Failed to save email settings', 'error');
+    } finally {
+      setSmtpSaving(false);
+    }
+  };
+
+  const handleTestSMTP = async () => {
+    setSmtpTesting(true);
+    setSmtpStatus(null);
+    const recipient = smtpSettings.fromEmail || smtpSettings.user || currentUserEmail;
+    if (!recipient) {
+      setSmtpStatus({ type: 'error', text: 'Please enter an Account Email or Sender Email Address to receive test messages.' });
+      setSmtpTesting(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: smtpSettings.host || 'smtp.gmail.com',
+          port: smtpSettings.port || 587,
+          user: smtpSettings.user,
+          pass: smtpSettings.pass,
+          fromEmail: smtpSettings.fromEmail || smtpSettings.user,
+          fromName: smtpSettings.fromName || 'Event Notifications',
+          to: recipient,
+          subject: 'Gmail SMTP Verification Test',
+          html: `
+            <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #4f46e5; border-radius: 12px; background-color: #f8fafc;">
+              <h3 style="color: #4f46e5; margin-top: 0;">SMTP Verification Successful</h3>
+              <p style="color: #334155; font-size: 14px;">Your Gmail SMTP settings are configured properly and active.</p>
+              <p style="color: #64748b; font-size: 12px;">Dispatched at: ${new Date().toLocaleString()}</p>
+            </div>
+          `,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'SMTP Connection Test Failed.');
+      }
+
+      setSmtpStatus({ type: 'success', text: `Test message dispatched successfully to ${recipient}!` });
+      showToast(`Test email dispatched successfully to ${recipient}`, 'success');
+    } catch (err: any) {
+      const errMsg = err?.message || 'Failed to send test email. Check host, port, user, or password.';
+      setSmtpStatus({ type: 'error', text: errMsg });
+      showToast(errMsg, 'error');
+    } finally {
+      setSmtpTesting(false);
+    }
   };
 
   const handleDownloadBackup = async () => {
@@ -294,6 +381,174 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             onChange={(e) => setFormData({ ...formData, footerText: e.target.value })}
             className="w-full px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
           />
+        </div>
+      </form>
+
+      {/* Dedicated Gmail SMTP Configuration Module */}
+      <form
+        onSubmit={handleSaveSMTP}
+        className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/90 shadow-xs space-y-5"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
+          <div>
+            <h3 className="text-base font-black text-gray-900 flex items-center gap-2">
+              <Mail className="w-5 h-5 text-indigo-600" />
+              Gmail & Outgoing SMTP Server Configuration
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Securely configure administrator email delivery credentials directly in the application interface.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleTestSMTP}
+              disabled={smtpTesting}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+            >
+              {smtpTesting ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-slate-700 border-t-transparent rounded-full animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5" />
+                  Test Connection
+                </>
+              )}
+            </button>
+
+            <button
+              type="submit"
+              disabled={smtpSaving}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {smtpSaving ? 'Saving...' : 'Save SMTP Settings'}
+            </button>
+          </div>
+        </div>
+
+        {smtpStatus && (
+          <div
+            className={`p-4 rounded-2xl border text-xs flex items-center gap-2.5 ${
+              smtpStatus.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-900 font-semibold'
+                : 'bg-rose-50 border-rose-200 text-rose-900 font-semibold'
+            }`}
+          >
+            {smtpStatus.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{smtpStatus.text}</span>
+          </div>
+        )}
+
+        {/* Quick Setup Guide Banner */}
+        <div className="bg-indigo-50/80 border border-indigo-200/90 rounded-2xl p-4 text-xs text-indigo-950 space-y-1">
+          <div className="font-bold flex items-center gap-1.5 text-indigo-900">
+            <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+            Gmail Credentials Guide
+          </div>
+          <p className="text-indigo-900/90 leading-relaxed">
+            For <strong>Gmail</strong>: Use Host <code className="bg-indigo-100/80 px-1.5 py-0.5 rounded font-mono font-bold text-indigo-950">smtp.gmail.com</code> and Port <code className="bg-indigo-100/80 px-1.5 py-0.5 rounded font-mono font-bold text-indigo-950">587</code>. Enter a <strong>16-character Google App Password</strong> as your password (generated in Google Account &gt; Security &gt; 2-Step Verification &gt; App Passwords).
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">
+              Outgoing Server (Host)
+            </label>
+            <input
+              type="text"
+              placeholder="smtp.gmail.com"
+              value={smtpSettings.host}
+              onChange={(e) => setSmtpSettings({ ...smtpSettings, host: e.target.value })}
+              className="w-full px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">
+              Server Port
+            </label>
+            <input
+              type="number"
+              placeholder="587"
+              value={smtpSettings.port}
+              onChange={(e) => setSmtpSettings({ ...smtpSettings, port: Number(e.target.value) })}
+              className="w-full px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">
+              Account Email
+            </label>
+            <input
+              type="email"
+              placeholder="you@gmail.com"
+              value={smtpSettings.user}
+              onChange={(e) =>
+                setSmtpSettings({
+                  ...smtpSettings,
+                  user: e.target.value,
+                  fromEmail: smtpSettings.fromEmail || e.target.value,
+                })
+              }
+              className="w-full px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">
+              Account Password (or App Password)
+            </label>
+            <input
+              type="password"
+              placeholder="16-character App Password"
+              value={smtpSettings.pass}
+              onChange={(e) => setSmtpSettings({ ...smtpSettings, pass: e.target.value })}
+              className="w-full px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">
+              Sender Display Name
+            </label>
+            <input
+              type="text"
+              placeholder="Event Notifications"
+              value={smtpSettings.fromName}
+              onChange={(e) => setSmtpSettings({ ...smtpSettings, fromName: e.target.value })}
+              className="w-full px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">
+              Sender Email Address
+            </label>
+            <input
+              type="email"
+              placeholder="you@gmail.com"
+              value={smtpSettings.fromEmail}
+              onChange={(e) => setSmtpSettings({ ...smtpSettings, fromEmail: e.target.value })}
+              className="w-full px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+              required
+            />
+          </div>
         </div>
       </form>
 

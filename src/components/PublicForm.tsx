@@ -197,6 +197,49 @@ export const PublicForm: React.FC<PublicFormProps> = ({
           origin: { y: 0.55 },
         });
         showToast('Registration confirmed! Official pass generated.', 'success');
+
+        // Automatically dispatch official registration pass email to attendee
+        if (res.response.email) {
+          dbService.getSMTPSettings().then((smtp) => {
+            fetch('/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                host: smtp.host || 'smtp.gmail.com',
+                port: smtp.port || 587,
+                user: smtp.user,
+                pass: smtp.pass,
+                fromEmail: smtp.fromEmail || smtp.user,
+                fromName: smtp.fromName || 'Event Notifications',
+                to: res.response.email,
+                subject: `Official Event Registration Pass: ${form.title}`,
+                html: `
+                  <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+                    <div style="background-color: ${form.themeColor || '#4f46e5'}; padding: 20px; border-radius: 12px; color: #ffffff; text-align: center;">
+                      <h2 style="margin: 0; font-size: 20px; font-weight: bold;">${form.title}</h2>
+                      <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.9;">Official Event Registration Pass</p>
+                    </div>
+                    <div style="padding: 20px 0; border-bottom: 1px dashed #cbd5e1;">
+                      <p style="font-size: 14px; color: #1e293b; margin: 0 0 12px 0;">Dear <strong>${res.response.fullName}</strong>,</p>
+                      <p style="font-size: 13px; color: #475569; margin: 0; line-height: 1.6;">
+                        Thank you for registering! Your official delegate pass has been confirmed. Please present your reference code at the entry gate upon arrival.
+                      </p>
+                    </div>
+                    <div style="padding: 16px; background-color: #f8fafc; border-radius: 12px; margin: 16px 0; text-align: center;">
+                      <p style="font-size: 11px; text-transform: uppercase; color: #64748b; margin: 0 0 4px 0; font-weight: bold;">Registration Reference</p>
+                      <p style="font-size: 22px; font-family: monospace; font-weight: bold; color: #4f46e5; margin: 0; letter-spacing: 2px;">${res.response.reference}</p>
+                    </div>
+                    ${form.eventDate ? `<p style="font-size: 12px; color: #475569; margin: 4px 0;">📅 Date & Time: <strong>${new Date(form.eventDate).toLocaleString()}</strong></p>` : ''}
+                    ${form.eventLocation ? `<p style="font-size: 12px; color: #475569; margin: 4px 0;">📍 Location: <strong>${form.eventLocation}</strong></p>` : ''}
+                    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9; text-align: center; font-size: 11px; color: #94a3b8;">
+                      <p style="margin: 0;">Powered by EventForm • Non-Transferable Official Delegate Pass</p>
+                    </div>
+                  </div>
+                `,
+              }),
+            }).catch((err) => console.warn('Automated pass email notice:', err));
+          });
+        }
       } else {
         showToast('Found your existing registration pass.', 'info');
       }

@@ -94,9 +94,18 @@ export const EmailCentre: React.FC = () => {
     }
   };
 
+  const getTargetResponses = (): FormResponse[] => {
+    if (recipientAudience === 'all') return responses;
+    if (recipientAudience === 'form_specific') return responses.filter((r) => r.formId === selectedFormId);
+    if (recipientAudience === 'unattended') return responses.filter((r) => !r.checkedIn);
+    return [];
+  };
+
   const handleSendAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
-    const count = calculateTargetCount();
+    const targetList = getTargetResponses();
+    const count = targetList.length;
+
     if (count === 0) {
       showToast('No recipients match the selected audience filter.', 'error');
       return;
@@ -105,34 +114,79 @@ export const EmailCentre: React.FC = () => {
     setSending(true);
     setStatusMessage(null);
 
-    // Simulate reliable batch dispatch with SMTP credentials
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
       const targetForm = forms.find((f) => f.id === selectedFormId);
+      let successCount = 0;
+      let lastError = '';
 
-      const newLog = await dbService.addEmailLog({
-        subject,
-        recipientsCount: count,
-        formId: selectedFormId,
-        formTitle: targetForm?.title || 'All Events',
-        status: 'sent',
-        recipientType: recipientAudience,
-        sender: smtpSettings.fromEmail || 'isholafelix609@gmail.com',
-      });
+      for (const resp of targetList.slice(0, 50)) {
+        if (!resp.email) continue;
 
-      setEmailLogs((prev) => [newLog, ...prev]);
-      const successText = `Dispatched email batch to ${count} registrants via ${smtpSettings.host}!`;
-      setStatusMessage({
-        type: 'success',
-        text: successText,
-      });
-      showToast(successText, 'success');
-    } catch (err) {
-      setStatusMessage({
-        type: 'error',
-        text: 'Failed to deliver emails. Please check email delivery settings.',
-      });
-      showToast('Failed to deliver emails. Please check email delivery settings.', 'error');
+        const personalizedSubject = subject
+          .replace(/{{name}}/g, resp.fullName || 'Delegate')
+          .replace(/{{event_title}}/g, resp.formTitle || targetForm?.title || 'Event')
+          .replace(/{{reference}}/g, resp.reference || '');
+
+        const personalizedBody = body
+          .replace(/{{name}}/g, resp.fullName || 'Delegate')
+          .replace(/{{event_title}}/g, resp.formTitle || targetForm?.title || 'Event')
+          .replace(/{{reference}}/g, resp.reference || '');
+
+        const htmlContent = `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 16px; background-color: #ffffff;">
+            <h2 style="color: #4f46e5; margin-top: 0;">${personalizedSubject}</h2>
+            <p style="white-space: pre-line; color: #374151; font-size: 14px; line-height: 1.6;">${personalizedBody}</p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+            <p style="font-size: 12px; color: #6b7280; margin: 0;">Reference Code: <strong>${resp.reference}</strong> | Powered by EventForm</p>
+          </div>
+        `;
+
+        const res = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            host: smtpSettings.host,
+            port: smtpSettings.port,
+            user: smtpSettings.user,
+            pass: smtpSettings.pass,
+            fromEmail: smtpSettings.fromEmail,
+            fromName: smtpSettings.fromName,
+            to: resp.email,
+            subject: personalizedSubject,
+            html: htmlContent,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          successCount++;
+        } else {
+          lastError = data.error || 'Failed to deliver message';
+        }
+      }
+
+      if (successCount > 0) {
+        const newLog = await dbService.addEmailLog({
+          subject,
+          recipientsCount: successCount,
+          formId: selectedFormId,
+          formTitle: targetForm?.title || 'All Events',
+          status: 'sent',
+          recipientType: recipientAudience,
+          sender: smtpSettings.fromEmail || smtpSettings.user || 'isholafelix609@gmail.com',
+        });
+
+        setEmailLogs((prev) => [newLog, ...prev]);
+        const successText = `Dispatched email announcement to ${successCount} registrant(s) successfully!`;
+        setStatusMessage({ type: 'success', text: successText });
+        showToast(successText, 'success');
+      } else {
+        throw new Error(lastError || 'Failed to dispatch emails. Please check your credentials.');
+      }
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Failed to deliver emails. Please check your email settings.';
+      setStatusMessage({ type: 'error', text: errorMsg });
+      showToast(errorMsg, 'error');
     } finally {
       setSending(false);
     }
@@ -140,31 +194,48 @@ export const EmailCentre: React.FC = () => {
 
   const handleSendTestEmail = async () => {
     setTestEmailSending(true);
+    setStatusMessage(null);
     try {
+      const recipient = smtpSettings.fromEmail || smtpSettings.user;
+      if (!recipient) {
+        throw new Error('Please enter a Sender Email Address or Account Email to receive test messages.');
+      }
+
       const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: smtpSettings.fromEmail, // Send test to self
-          subject: 'Test Email from EventForm',
-          html: '<p>This is a test email from EventForm.</p>',
+          host: smtpSettings.host,
+          port: smtpSettings.port,
+          user: smtpSettings.user,
+          pass: smtpSettings.pass,
+          fromEmail: smtpSettings.fromEmail,
+          fromName: smtpSettings.fromName,
+          to: recipient,
+          subject: 'Test Email Verification from EventForm',
+          html: `
+            <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #4f46e5; border-radius: 12px; background-color: #f8fafc;">
+              <h3 style="color: #4f46e5; margin-top: 0;">Email Delivery Verification</h3>
+              <p style="color: #334155; font-size: 14px;">Your email settings have been verified and are working correctly.</p>
+              <p style="color: #64748b; font-size: 12px;">Sent at: ${new Date().toLocaleString()}</p>
+            </div>
+          `,
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to send');
+      const data = await response.json();
 
-      const testMsg = `Test message dispatched successfully to ${smtpSettings.fromEmail}`;
-      setStatusMessage({
-        type: 'success',
-        text: testMsg,
-      });
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to deliver test email.');
+      }
+
+      const testMsg = `Test message dispatched successfully to ${recipient}!`;
+      setStatusMessage({ type: 'success', text: testMsg });
       showToast(testMsg, 'success');
-    } catch (err) {
-      setStatusMessage({
-        type: 'error',
-        text: 'Failed to deliver emails. Please check email delivery settings.',
-      });
-      showToast('Failed to deliver emails. Please check email delivery settings.', 'error');
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Failed to deliver test email. Please check your credentials.';
+      setStatusMessage({ type: 'error', text: errorMsg });
+      showToast(errorMsg, 'error');
     } finally {
       setTestEmailSending(false);
     }
@@ -454,6 +525,17 @@ export const EmailCentre: React.FC = () => {
             </div>
           </div>
 
+          {/* Quick Help Card for Gmail */}
+          <div className="bg-indigo-50/80 border border-indigo-200/90 rounded-2xl p-4 text-xs text-indigo-950 space-y-1">
+            <div className="font-bold flex items-center gap-1.5 text-indigo-900">
+              <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+              Gmail & Outgoing Mail Guide
+            </div>
+            <p className="text-indigo-900/90 leading-relaxed">
+              If using <strong>Gmail</strong>: Set Host to <code className="bg-indigo-100/80 px-1.5 py-0.5 rounded font-mono font-bold text-indigo-950">smtp.gmail.com</code> and Port to <code className="bg-indigo-100/80 px-1.5 py-0.5 rounded font-mono font-bold text-indigo-950">587</code>. For Account Password, enter a <strong>16-character Google App Password</strong> (created under your Google Account &gt; Security &gt; 2-Step Verification &gt; App Passwords).
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
@@ -461,6 +543,7 @@ export const EmailCentre: React.FC = () => {
               </label>
               <input
                 type="text"
+                placeholder="smtp.gmail.com"
                 value={smtpSettings.host}
                 onChange={(e) => setSmtpSettings({ ...smtpSettings, host: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white"
@@ -474,6 +557,7 @@ export const EmailCentre: React.FC = () => {
               </label>
               <input
                 type="number"
+                placeholder="587"
                 value={smtpSettings.port}
                 onChange={(e) => setSmtpSettings({ ...smtpSettings, port: Number(e.target.value) })}
                 className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white"
@@ -487,8 +571,9 @@ export const EmailCentre: React.FC = () => {
               </label>
               <input
                 type="email"
+                placeholder="you@gmail.com"
                 value={smtpSettings.user}
-                onChange={(e) => setSmtpSettings({ ...smtpSettings, user: e.target.value })}
+                onChange={(e) => setSmtpSettings({ ...smtpSettings, user: e.target.value, fromEmail: smtpSettings.fromEmail || e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white"
                 required
               />
@@ -496,10 +581,11 @@ export const EmailCentre: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Account Password
+                Account Password (or App Password)
               </label>
               <input
                 type="password"
+                placeholder="16-character App Password"
                 value={smtpSettings.pass}
                 onChange={(e) => setSmtpSettings({ ...smtpSettings, pass: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white font-mono"
@@ -513,6 +599,7 @@ export const EmailCentre: React.FC = () => {
               </label>
               <input
                 type="text"
+                placeholder="Event Notifications"
                 value={smtpSettings.fromName}
                 onChange={(e) => setSmtpSettings({ ...smtpSettings, fromName: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white"
@@ -526,6 +613,7 @@ export const EmailCentre: React.FC = () => {
               </label>
               <input
                 type="email"
+                placeholder="you@gmail.com"
                 value={smtpSettings.fromEmail}
                 onChange={(e) => setSmtpSettings({ ...smtpSettings, fromEmail: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white"
@@ -534,10 +622,15 @@ export const EmailCentre: React.FC = () => {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-xs text-gray-400">
-              Credentials are stored securely in configuration.
-            </span>
+          <div className="pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={handleSendTestEmail}
+              disabled={testEmailSending}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+            >
+              {testEmailSending ? 'Testing Connection...' : 'Test Connection & Send Test Email'}
+            </button>
 
             <button
               type="submit"

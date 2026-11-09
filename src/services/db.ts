@@ -933,27 +933,50 @@ class DatabaseService {
   // SMTP Settings
   async getSMTPSettings(): Promise<SMTPSettings> {
     try {
+      const data = localStorage.getItem(LOCAL_SMTP_KEY);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (parsed && (parsed.host || parsed.user || parsed.fromEmail)) {
+          return {
+            host: parsed.host || 'smtp.gmail.com',
+            port: Number(parsed.port) || 587,
+            user: parsed.user || '',
+            pass: parsed.pass || '',
+            fromName: parsed.fromName || 'Event Notifications',
+            fromEmail: parsed.fromEmail || parsed.user || '',
+            enabled: parsed.enabled ?? true,
+          };
+        }
+      }
+    } catch (e) {}
+
+    try {
       const docRef = doc(db, 'settings', 'smtp');
       const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) return docSnap.data() as SMTPSettings;
+      if (docSnap.exists()) {
+        const data = docSnap.data() as SMTPSettings;
+        return {
+          host: data.host || 'smtp.gmail.com',
+          port: Number(data.port) || 587,
+          user: data.user || '',
+          pass: data.pass || '',
+          fromName: data.fromName || 'Event Notifications',
+          fromEmail: data.fromEmail || data.user || '',
+          enabled: data.enabled ?? true,
+        };
+      }
     } catch (e) {
       console.error('Failed to fetch SMTP settings from Firestore', e);
     }
 
-    // Fallback to local storage if Firestore fetch fails
-    try {
-      const data = localStorage.getItem(LOCAL_SMTP_KEY);
-      if (data) return JSON.parse(data);
-    } catch (e) {}
-
     return {
-      host: '',
+      host: 'smtp.gmail.com',
       port: 587,
       user: '',
       pass: '',
-      fromName: '',
+      fromName: 'Event Notifications',
       fromEmail: '',
-      enabled: false,
+      enabled: true,
     };
   }
 
@@ -964,6 +987,13 @@ class DatabaseService {
     } catch (e) {
       console.error('Failed to save SMTP settings to Firestore', e);
     }
+
+    // Sync directly to Node backend server cache
+    fetch('/api/save-smtp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    }).catch(() => {});
   }
 
   // Real-time Live Subscriptions (Across all roles)
