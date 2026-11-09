@@ -11,6 +11,7 @@ import { CheckInScanner } from './components/CheckInScanner';
 import { EmailCentre } from './components/EmailCentre';
 import { SettingsView } from './components/SettingsView';
 import { PublicForm } from './components/PublicForm';
+import { NotFoundPage } from './components/NotFoundPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast } from './context/ToastContext';
 import {
@@ -21,17 +22,9 @@ import {
 
 function AppContent() {
   const { showToast } = useToast();
-  const [currentTab, setCurrentTab] = useState<string>(() => {
-    if (typeof window === 'undefined') return 'overview';
-    const rawHash = window.location.hash.toLowerCase();
-    const rawPath = window.location.pathname.toLowerCase();
-    if (rawHash.startsWith('#builder')) return 'builder';
-    if (rawHash === '#agent' || rawPath === '/agent') return 'bulk';
-    if (rawHash === '#eventofficer' || rawPath === '/eventofficer') return 'forms';
-    if (rawHash === '#checkiofficer' || rawPath === '/checkiofficer' || rawHash === '#checkin' || rawPath === '/checkin') return 'checkin';
-    return 'overview';
-  });
+  const [currentTab, setCurrentTab] = useState<string>('overview');
   const [publicFormSlug, setPublicFormSlug] = useState<string | null>(null);
+  const [isNotFound, setIsNotFound] = useState<boolean>(false);
   const [editingFormId, setEditingFormId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     const rawHash = window.location.hash;
@@ -49,12 +42,15 @@ function AppContent() {
   const [showAdminLockModal, setShowAdminLockModal] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(isAdminSessionUnlocked());
 
-  // Check URL pathname and hash for routes: /Agent, /Eventofficer, /checkiofficer, /admin, and /#f=<slug>
+  // Strict route isolation & routing check
   const checkUrlRouting = () => {
     const rawHash = window.location.hash;
     const hash = rawHash.toLowerCase();
     const rawPath = window.location.pathname;
     const path = rawPath.toLowerCase();
+
+    // Reset default flags
+    setIsNotFound(false);
 
     // 1. Direct Public Form Link (e.g. #f=worship-encounter-3 or /f/worship-encounter-3)
     if (rawHash.startsWith('#f=')) {
@@ -81,8 +77,12 @@ function AppContent() {
       if (formId) {
         setEditingFormId(formId);
       }
-      setCurrentRole('super_admin');
-      setCurrentTab('builder');
+      if (!isAdminSessionUnlocked()) {
+        setShowAdminLockModal(true);
+      } else {
+        setCurrentRole('super_admin');
+        setCurrentTab('builder');
+      }
       return;
     }
 
@@ -112,21 +112,33 @@ function AppContent() {
       return;
     }
 
-    // 5. Admin Route: /admin or #admin
-    if (path === '/admin' || hash === '#admin') {
+    // 5. Admin Dashboard Route: ONLY /admin or #admin or active admin tabs (e.g. #overview, #settings, #email, #responses)
+    const isAdminPathOrHash =
+      path === '/admin' ||
+      hash === '#admin' ||
+      hash.startsWith('#admin') ||
+      (rawPath === '/' && ['#overview', '#forms', '#responses', '#bulk', '#checkin', '#email', '#settings'].includes(hash));
+
+    if (isAdminPathOrHash) {
       if (!isAdminSessionUnlocked()) {
         setShowAdminLockModal(true);
       } else {
         setCurrentRole('super_admin');
-        setCurrentTab('overview');
+        if (hash === '#settings') setCurrentTab('settings');
+        else if (hash === '#email') setCurrentTab('email');
+        else if (hash === '#responses') setCurrentTab('responses');
+        else if (hash === '#forms') setCurrentTab('forms');
+        else if (hash === '#bulk') setCurrentTab('bulk');
+        else if (hash === '#checkin') setCurrentTab('checkin');
+        else setCurrentTab('overview');
       }
       return;
     }
 
-    // Default route: if user has super_admin role and is not unlocked, show lock modal
-    if (!isAdminSessionUnlocked()) {
-      setShowAdminLockModal(true);
-    }
+    // 6. Base Root "/" or Unrecognized Path -> Render 404 Invalid Page Screen
+    // Accessing "/" without an event identifier or removing event identifier MUST NEVER expose admin dashboard.
+    setIsNotFound(true);
+    setShowAdminLockModal(false);
   };
 
   useEffect(() => {
@@ -134,7 +146,6 @@ function AppContent() {
     window.addEventListener('hashchange', checkUrlRouting);
     window.addEventListener('popstate', checkUrlRouting);
 
-    // Real-time live data listeners for instant synchronization across all tabs and roles
     const unsubForms = dbService.subscribeForms((forms) => {
       setFormsList(forms.map((f) => ({ id: f.id, slug: f.slug, title: f.title })));
     });
@@ -155,6 +166,7 @@ function AppContent() {
   const handleOpenPublicLink = (slug: string) => {
     window.location.hash = `f=${slug}`;
     setPublicFormSlug(slug);
+    setIsNotFound(false);
   };
 
   const handleEditForm = (formId: string) => {
@@ -183,13 +195,13 @@ function AppContent() {
 
   const handleRoleChange = (role: UserRole) => {
     if (role === 'super_admin' || role === 'admin') {
+      window.location.hash = 'admin';
       if (!isAdminSessionUnlocked()) {
         setShowAdminLockModal(true);
         return;
       }
       setCurrentRole(role);
       setCurrentTab('overview');
-      window.location.hash = 'admin';
     } else if (role === 'agent') {
       setCurrentRole('agent');
       setCurrentTab('bulk');
@@ -208,6 +220,7 @@ function AppContent() {
   const handleLockAdmin = () => {
     setAdminSessionUnlocked(false);
     setIsAdminUnlocked(false);
+    window.location.hash = 'admin';
     setShowAdminLockModal(true);
     showToast('Administrator session locked', 'info');
   };
@@ -217,6 +230,7 @@ function AppContent() {
     setShowAdminLockModal(false);
     setCurrentRole('super_admin');
     setCurrentTab('overview');
+    setIsNotFound(false);
   };
 
   const handleCancelToRole = (role: string) => {
@@ -224,12 +238,29 @@ function AppContent() {
     handleRoleChange(role as UserRole);
   };
 
-  // 1. PUBLIC FORM VIEW: Render the public form page
+  // 1. PUBLIC FORM VIEW: Render public event registration page
   if (publicFormSlug) {
     return <PublicForm slugOrId={publicFormSlug} />;
   }
 
-  // 2. Tab selection guard based on active role
+  // 2. 404 PAGE NOT FOUND: Root "/" without event identifier or invalid URLs
+  if (isNotFound) {
+    return (
+      <div className="relative min-h-screen">
+        <NotFoundPage />
+        {/* Admin Lock modal is accessible via /admin endpoint only */}
+        {showAdminLockModal && (
+          <AdminAppLockModal
+            isOpen={showAdminLockModal}
+            onSuccess={handleAdminUnlockSuccess}
+            onCancelToRole={handleCancelToRole}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // 3. Tab selection guard based on active role
   const isRoleRestricted = currentRole !== 'super_admin' && currentRole !== 'admin';
 
   return (
@@ -245,9 +276,9 @@ function AppContent() {
       <Navbar
         activeTab={currentTab}
         onTabChange={(tab) => {
-          // If switching to admin-only tabs while not unlocked, prompt lock
           const adminOnlyTabs = ['overview', 'builder', 'email', 'settings'];
           if (adminOnlyTabs.includes(tab) && !isAdminSessionUnlocked()) {
+            window.location.hash = 'admin';
             setShowAdminLockModal(true);
             return;
           }
@@ -255,6 +286,7 @@ function AppContent() {
             setEditingFormId(null);
           }
           setCurrentTab(tab);
+          window.location.hash = tab === 'overview' ? 'admin' : tab;
         }}
         currentRole={currentRole}
         onRoleChange={handleRoleChange}
@@ -264,7 +296,10 @@ function AppContent() {
         siteSettings={siteSettings}
         isAdminLocked={!isAdminUnlocked}
         onLockAdmin={handleLockAdmin}
-        onRequestAdminUnlock={() => setShowAdminLockModal(true)}
+        onRequestAdminUnlock={() => {
+          window.location.hash = 'admin';
+          setShowAdminLockModal(true);
+        }}
       />
 
       {/* Main Content Area */}
@@ -318,7 +353,10 @@ function AppContent() {
               {currentTab === 'overview' && (
                 <DashboardOverview
                   onCreateForm={handleCreateNewForm}
-                  onNavigateTab={setCurrentTab}
+                  onNavigateTab={(tab) => {
+                    setCurrentTab(tab);
+                    window.location.hash = tab;
+                  }}
                   onOpenPublicLink={handleOpenPublicLink}
                   onViewResponses={handleViewResponsesForForm}
                   siteSettings={siteSettings}
