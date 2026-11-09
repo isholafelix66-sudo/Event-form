@@ -39,6 +39,7 @@ export const EmailCentre: React.FC = () => {
   );
   const [sending, setSending] = useState(false);
   const [testEmailSending, setTestEmailSending] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<'verified' | 'unverified' | 'failed' | 'testing'>('verified');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Settings tab state
@@ -56,6 +57,11 @@ export const EmailCentre: React.FC = () => {
       setResponses(r);
       setEmailLogs(l);
       setSmtpSettings(smtp);
+      if (smtp.user && smtp.pass) {
+        setVerificationStatus('verified');
+      } else {
+        setVerificationStatus('unverified');
+      }
       if (f.length > 0) {
         setSelectedFormId(f[0].id);
       }
@@ -173,7 +179,7 @@ export const EmailCentre: React.FC = () => {
           formTitle: targetForm?.title || 'All Events',
           status: 'sent',
           recipientType: recipientAudience,
-          sender: smtpSettings.fromEmail || smtpSettings.user || 'isholafelix609@gmail.com',
+          sender: smtpSettings.fromEmail || smtpSettings.user || 'bsfijerubc@gmail.com',
         });
 
         setEmailLogs((prev) => [newLog, ...prev]);
@@ -194,10 +200,12 @@ export const EmailCentre: React.FC = () => {
 
   const handleSendTestEmail = async () => {
     setTestEmailSending(true);
+    setVerificationStatus('testing');
     setStatusMessage(null);
     try {
       const recipient = smtpSettings.fromEmail || smtpSettings.user;
       if (!recipient) {
+        setVerificationStatus('failed');
         throw new Error('Please enter a Sender Email Address or Account Email to receive test messages.');
       }
 
@@ -226,13 +234,16 @@ export const EmailCentre: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        setVerificationStatus('failed');
         throw new Error(data.error || 'Failed to deliver test email.');
       }
 
+      setVerificationStatus('verified');
       const testMsg = `Test message dispatched successfully to ${recipient}!`;
       setStatusMessage({ type: 'success', text: testMsg });
       showToast(testMsg, 'success');
     } catch (err: any) {
+      setVerificationStatus('failed');
       const errorMsg = err?.message || 'Failed to deliver test email. Please check your credentials.';
       setStatusMessage({ type: 'error', text: errorMsg });
       showToast(errorMsg, 'error');
@@ -244,6 +255,9 @@ export const EmailCentre: React.FC = () => {
   const handleSaveSMTP = (e: React.FormEvent) => {
     e.preventDefault();
     dbService.saveSMTPSettings(smtpSettings);
+    if (smtpSettings.user && smtpSettings.pass) {
+      setVerificationStatus('verified');
+    }
     setSmtpSaved(true);
     showToast('Email settings saved securely', 'success');
     setTimeout(() => setSmtpSaved(false), 2500);
@@ -513,13 +527,41 @@ export const EmailCentre: React.FC = () => {
       {/* VIEW: GMAIL SMTP CONFIGURATION */}
       {activeTab === 'smtp' && (
         <form onSubmit={handleSaveSMTP} className="bg-white rounded-3xl p-6 border border-gray-200 shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
             <div>
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                Email Delivery Settings
-              </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  Email Delivery Settings
+                </h3>
+                {/* Visual Status Indicator Badge */}
+                {verificationStatus === 'verified' && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-bold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    SMTP Active & Verified
+                  </span>
+                )}
+                {verificationStatus === 'failed' && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[11px] font-bold">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                    Connection Error
+                  </span>
+                )}
+                {verificationStatus === 'testing' && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[11px] font-bold">
+                    <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                    Verifying...
+                  </span>
+                )}
+                {verificationStatus === 'unverified' && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[11px] font-bold">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                    Setup Required
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">
                 Configure sender account credentials for automated attendee passes and notifications.
               </p>
             </div>

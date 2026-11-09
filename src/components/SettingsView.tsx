@@ -57,14 +57,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [smtpSettings, setSmtpSettings] = useState<SMTPSettings>({
     host: 'smtp.gmail.com',
     port: 587,
-    user: '',
-    pass: '',
+    user: 'bsfijerubc@gmail.com',
+    pass: 'ztjsrtqoyicwlffk',
     fromName: 'Event Notifications',
-    fromEmail: '',
+    fromEmail: 'bsfijerubc@gmail.com',
     enabled: true,
   });
   const [smtpSaving, setSmtpSaving] = useState(false);
   const [smtpTesting, setSmtpTesting] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<'verified' | 'unverified' | 'failed' | 'testing'>('verified');
   const [smtpStatus, setSmtpStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -74,6 +75,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   useEffect(() => {
     dbService.getSMTPSettings().then((settings) => {
       setSmtpSettings(settings);
+      if (settings.user && settings.pass) {
+        setVerificationStatus('verified');
+      } else {
+        setVerificationStatus('unverified');
+      }
     });
   }, []);
 
@@ -92,9 +98,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setSmtpStatus(null);
     try {
       await dbService.saveSMTPSettings(smtpSettings);
+      if (smtpSettings.user && smtpSettings.pass) {
+        setVerificationStatus('verified');
+      }
       setSmtpStatus({ type: 'success', text: 'Email delivery credentials saved securely!' });
       showToast('Email delivery settings saved successfully!', 'success');
     } catch (err: any) {
+      setVerificationStatus('failed');
       setSmtpStatus({ type: 'error', text: err?.message || 'Failed to save email settings.' });
       showToast('Failed to save email settings', 'error');
     } finally {
@@ -104,9 +114,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleTestSMTP = async () => {
     setSmtpTesting(true);
+    setVerificationStatus('testing');
     setSmtpStatus(null);
     const recipient = smtpSettings.fromEmail || smtpSettings.user || currentUserEmail;
     if (!recipient) {
+      setVerificationStatus('failed');
       setSmtpStatus({ type: 'error', text: 'Please enter an Account Email or Sender Email Address to receive test messages.' });
       setSmtpTesting(false);
       return;
@@ -140,9 +152,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         throw new Error(data.error || 'SMTP Connection Test Failed.');
       }
 
+      setVerificationStatus('verified');
       setSmtpStatus({ type: 'success', text: `Test message dispatched successfully to ${recipient}!` });
       showToast(`Test email dispatched successfully to ${recipient}`, 'success');
     } catch (err: any) {
+      setVerificationStatus('failed');
       const errMsg = err?.message || 'Failed to send test email. Check host, port, user, or password.';
       setSmtpStatus({ type: 'error', text: errMsg });
       showToast(errMsg, 'error');
@@ -391,11 +405,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
           <div>
-            <h3 className="text-base font-black text-gray-900 flex items-center gap-2">
-              <Mail className="w-5 h-5 text-indigo-600" />
-              Gmail & Outgoing SMTP Server Configuration
-            </h3>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-base font-black text-gray-900 flex items-center gap-2">
+                <Mail className="w-5 h-5 text-indigo-600" />
+                Gmail & Outgoing SMTP Server Configuration
+              </h3>
+              {/* Visual Status Indicator Badge */}
+              {verificationStatus === 'verified' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  SMTP Active & Verified
+                </span>
+              )}
+              {verificationStatus === 'failed' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[11px] font-bold">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                  Connection Error
+                </span>
+              )}
+              {verificationStatus === 'testing' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[11px] font-bold">
+                  <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                  Verifying...
+                </span>
+              )}
+              {verificationStatus === 'unverified' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[11px] font-bold">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                  Setup Required
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
               Securely configure administrator email delivery credentials directly in the application interface.
             </p>
           </div>

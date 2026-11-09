@@ -972,10 +972,10 @@ class DatabaseService {
     return {
       host: 'smtp.gmail.com',
       port: 587,
-      user: '',
-      pass: '',
+      user: 'bsfijerubc@gmail.com',
+      pass: 'ztjsrtqoyicwlffk',
       fromName: 'Event Notifications',
-      fromEmail: '',
+      fromEmail: 'bsfijerubc@gmail.com',
       enabled: true,
     };
   }

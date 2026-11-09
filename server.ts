@@ -24,9 +24,9 @@ const isProd = process.env.NODE_ENV === 'production';
 let serverSmtpCache = {
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: Number(process.env.SMTP_PORT || 587),
-  user: (process.env.SMTP_USER || '').trim(),
-  pass: (process.env.SMTP_PASS || '').trim(),
-  fromEmail: (process.env.SMTP_FROM_EMAIL || '').trim(),
+  user: (process.env.SMTP_USER || 'bsfijerubc@gmail.com').trim(),
+  pass: (process.env.SMTP_PASS || 'ztjsrtqoyicwlffk').trim(),
+  fromEmail: (process.env.SMTP_FROM_EMAIL || 'bsfijerubc@gmail.com').trim(),
   fromName: (process.env.SMTP_FROM_NAME || 'Event Notifications').trim(),
 };
 
