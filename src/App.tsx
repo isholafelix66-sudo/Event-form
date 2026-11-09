@@ -43,6 +43,8 @@ function AppContent() {
   const [showAdminLockModal, setShowAdminLockModal] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(isAdminSessionUnlocked());
 
+  const [parentCode, setParentCode] = useState<string | null>(null);
+
   // Strict route isolation & routing check
   const checkUrlRouting = () => {
     const rawHash = window.location.hash;
@@ -53,23 +55,35 @@ function AppContent() {
     // Reset default flags
     setIsNotFound(false);
 
-    // 1. Direct Public Form Link (e.g. #f=worship-encounter-3 or /f/worship-encounter-3)
+    // 1. Direct Public Form Link (e.g. #f=worship-encounter-3&parent=EVT-2026-W301 or /f/worship-encounter-3?parent=EVT-2026-W301)
     if (rawHash.startsWith('#f=')) {
-      const slug = rawHash.replace('#f=', '').trim();
+      const fullQuery = rawHash.replace('#f=', '').trim();
+      const slug = fullQuery.split('&')[0].split('?')[0].trim();
+      
+      // Extract parent code if present in hash (e.g. &parent=EVT-2026-XXXX)
+      const parentMatch = fullQuery.match(/[?&]parent=([^&]+)/i);
+      const extractedParent = parentMatch ? decodeURIComponent(parentMatch[1]).trim().toUpperCase() : null;
+
       if (slug) {
         setPublicFormSlug(slug);
+        setParentCode(extractedParent);
         return;
       }
     }
     if (rawPath.startsWith('/f/')) {
-      const slug = rawPath.replace('/f/', '').trim();
+      const slug = rawPath.replace('/f/', '').split('/')[0].split('?')[0].trim();
+      const parentMatch = window.location.search.match(/[?&]parent=([^&]+)/i);
+      const extractedParent = parentMatch ? decodeURIComponent(parentMatch[1]).trim().toUpperCase() : null;
+
       if (slug) {
         setPublicFormSlug(slug);
+        setParentCode(extractedParent);
         return;
       }
     }
 
     setPublicFormSlug(null);
+    setParentCode(null);
 
     // Form builder routing: #builder or #builder&id=...
     if (hash.startsWith('#builder')) {
@@ -174,6 +188,7 @@ function AppContent() {
   const handleOpenPublicLink = (slug: string) => {
     window.location.hash = `f=${slug}`;
     setPublicFormSlug(slug);
+    setParentCode(null);
     setIsNotFound(false);
   };
 
@@ -248,7 +263,7 @@ function AppContent() {
 
   // 1. PUBLIC FORM VIEW: Render public event registration page
   if (publicFormSlug) {
-    return <PublicForm slugOrId={publicFormSlug} />;
+    return <PublicForm slugOrId={publicFormSlug} parentCode={parentCode} />;
   }
 
   // 1.5 REGISTRANT PORTAL VIEW: Render portal if hash is #portal or pathname is /portal

@@ -122,6 +122,8 @@ export const ResponsesManager: React.FC<ResponsesManagerProps> = ({
       'Reference',
       'Event Form',
       'Full Name',
+      'Attendee Type',
+      'Parent Reference',
       'Email',
       'Phone',
       'Church / Ministry',
@@ -136,6 +138,8 @@ export const ResponsesManager: React.FC<ResponsesManagerProps> = ({
       `"${r.reference}"`,
       `"${r.formTitle.replace(/"/g, '""')}"`,
       `"${getAttendeeName(r).replace(/"/g, '""')}"`,
+      `"${r.parent_registration_id ? 'Child / Dependent' : 'Primary Registrant'}"`,
+      `"${r.parent_registration_id || ''}"`,
       `"${r.email}"`,
       `"${r.phone || ''}"`,
       `"${getChurchName(r).replace(/"/g, '""')}"`,
@@ -304,7 +308,14 @@ export const ResponsesManager: React.FC<ResponsesManagerProps> = ({
                       {r.reference}
                     </td>
                     <td className="px-4 py-3.5">
-                      <div className="font-bold text-gray-900">{getAttendeeName(r)}</div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-bold text-gray-900">{getAttendeeName(r)}</span>
+                        {r.parent_registration_id ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            Child ({r.parent_registration_id})
+                          </span>
+                        ) : null}
+                      </div>
                       <div className="text-[11px] text-gray-500 font-medium">{r.email}</div>
                     </td>
                     <td className="px-4 py-3.5">

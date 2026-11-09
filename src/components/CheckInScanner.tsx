@@ -15,7 +15,8 @@ import {
   RefreshCw,
   Sparkles,
   ShieldCheck,
-  Check
+  Check,
+  Users
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useToast } from '../context/ToastContext';
@@ -382,6 +383,110 @@ export const CheckInScanner: React.FC<CheckInScannerProps> = ({
                       <p className="text-xs text-gray-500">{activeCandidate.phone}</p>
                     )}
                   </div>
+
+                  {/* Church / Ministry affiliation */}
+                  {(() => {
+                    const attendeeChurch =
+                      activeCandidate.answers?.['Church / Ministry'] ||
+                      activeCandidate.answers?.['q-ministry'] ||
+                      Object.entries(activeCandidate.answers || {}).find(
+                        ([k, v]) => (k.toLowerCase().includes('church') || k.toLowerCase().includes('ministry')) && typeof v === 'string'
+                      )?.[1];
+
+                    return attendeeChurch ? (
+                      <div className="text-xs text-gray-600">
+                        <span className="font-bold text-gray-700">Church / Ministry:</span> {attendeeChurch}
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* Child / Dependent Account Link Notice */}
+                  {activeCandidate.parent_registration_id && (() => {
+                    const parentRecord = responses.find(
+                      (r) =>
+                        r.reference === activeCandidate.parent_registration_id ||
+                        r.id === activeCandidate.parent_registration_id
+                    );
+
+                    return (
+                      <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-indigo-600" />
+                            Child / Dependent Account
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                            Parent: {activeCandidate.parent_registration_id}
+                          </span>
+                        </div>
+                        <div className="text-xs text-indigo-950">
+                          Parent Account: <strong>{parentRecord ? parentRecord.fullName : activeCandidate.parent_registration_id}</strong>
+                          {parentRecord && (
+                            <span className="ml-2 text-[11px] text-gray-500">
+                              ({parentRecord.checkedIn ? '✅ Parent Checked In' : '⏳ Parent Pending Arrival'})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Linked Children Registered under this Parent */}
+                  {(() => {
+                    const linkedChildren = responses.filter(
+                      (r) =>
+                        r.parent_registration_id === activeCandidate.reference ||
+                        r.parent_registration_id === activeCandidate.id
+                    );
+
+                    if (linkedChildren.length === 0) return null;
+
+                    return (
+                      <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-indigo-600" />
+                            Registered Children ({linkedChildren.length})
+                          </span>
+                          <span className="text-[10px] font-bold text-indigo-700">
+                            Family Account
+                          </span>
+                        </div>
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                          {linkedChildren.map((child) => (
+                            <div
+                              key={child.id}
+                              className="flex items-center justify-between p-2 bg-white rounded-lg border border-indigo-100 text-xs"
+                            >
+                              <div>
+                                <span className="font-bold text-gray-900">{child.fullName}</span>
+                                <span className="font-mono text-[10px] text-gray-400 ml-1.5">{child.reference}</span>
+                              </div>
+                              <div>
+                                {child.checkedIn ? (
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                    Checked In
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={async () => {
+                                      const updated = await dbService.checkInAttendee(child.id, currentOfficerName);
+                                      if (updated) {
+                                        showToast(`Checked in child ${child.fullName}`, 'success');
+                                      }
+                                    }}
+                                    className="text-[10px] font-bold px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer"
+                                  >
+                                    Check In
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div className="pt-2 border-t border-gray-200 text-xs text-gray-600">
                     <div className="font-semibold text-gray-800">{activeCandidate.formTitle}</div>

@@ -296,42 +296,66 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
               </div>
             ) : (
               <div className="space-y-3">
-                {dependents.map((dep, index) => (
-                  <div
-                    key={dep.id}
-                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-gray-200 hover:border-gray-300 transition"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                          {dep.reference}
-                        </span>
-                        <span className="text-xs font-bold text-slate-900">
-                          Child #{index + 1}: {dep.fullName}
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {dep.email} {dep.phone ? `• ${dep.phone}` : ''}
-                      </div>
-                    </div>
+                {dependents.map((dep, index) => {
+                  const childChurch =
+                    dep.answers?.['Church / Ministry'] ||
+                    dep.answers?.['q-ministry'] ||
+                    mainRegistrant.answers?.['Church / Ministry'] ||
+                    mainRegistrant.answers?.['q-ministry'] ||
+                    '';
 
-                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                      <button
-                        onClick={() => setViewingTicketResponse(dep)}
-                        className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition cursor-pointer"
-                      >
-                        View Pass
-                      </button>
-                      <button
-                        onClick={() => handleDeleteDependent(dep.id)}
-                        className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
-                        title="Remove child"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                  return (
+                    <div
+                      key={dep.id}
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-gray-200 hover:border-gray-300 transition"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                            {dep.reference}
+                          </span>
+                          <span className="text-xs font-bold text-slate-900">
+                            Child #{index + 1}: {dep.fullName}
+                          </span>
+                          {dep.checkedIn ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Checked In
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                              Pending Arrival
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-500 flex flex-wrap gap-x-2">
+                          <span>{dep.email}</span>
+                          {dep.phone && <span>• {dep.phone}</span>}
+                          {childChurch && (
+                            <span className="text-indigo-600 font-medium">
+                              • Church: {childChurch}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <button
+                          onClick={() => setViewingTicketResponse(dep)}
+                          className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                        >
+                          View Pass
+                        </button>
+                        <button
+                          onClick={() => handleDeleteDependent(dep.id)}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                          title="Remove child"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -448,40 +472,83 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
                 </button>
               </div>
 
-              <div className="space-y-3 text-xs text-slate-600">
-                <p className="leading-relaxed">
-                  Share this registration link with your child or family member. When they register using this link or portal code <strong className="font-mono text-indigo-600">{mainRegistrant.reference}</strong>, they will be automatically linked under your account as a child attendee.
-                </p>
+              {(() => {
+                const targetSlug = eventForm?.slug || mainRegistrant.formSlug || 'worship-encounter-3';
+                const childDirectLink = `${window.location.origin}/#f=${targetSlug}&parent=${mainRegistrant.reference}`;
 
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Direct Portal Link
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={`${window.location.origin}/#portal`}
-                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-800 select-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const linkText = `${window.location.origin}/#portal (Parent Code: ${mainRegistrant.reference})`;
-                        navigator.clipboard.writeText(linkText);
-                        showToast('Registration link & parent code copied to clipboard!', 'success');
-                      }}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition cursor-pointer shrink-0"
-                    >
-                      Copy Link
-                    </button>
+                return (
+                  <div className="space-y-4 text-xs text-slate-600">
+                    <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-950 text-xs leading-relaxed">
+                      <strong>Direct Form Link:</strong> When your child or family member clicks this link, the event registration form renders <strong>immediately without needing to enter your registration code</strong>.
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Child Registration Form Link
+                      </label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={childDirectLink}
+                          className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-800 select-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(childDirectLink);
+                            showToast('Direct child registration link copied to clipboard!', 'success');
+                          }}
+                          className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition cursor-pointer shrink-0 flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>Copy Link</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.hash = `f=${targetSlug}&parent=${mainRegistrant.reference}`;
+                          setShowShareLinkModal(false);
+                        }}
+                        className="flex-1 py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl font-bold transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                        <span>Open & Test Child Form</span>
+                      </button>
+
+                      {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.share({
+                                title: `Register for ${mainRegistrant.formTitle}`,
+                                text: `Please register for ${mainRegistrant.formTitle} under my family account. Click here:`,
+                                url: childDirectLink,
+                              });
+                            } catch (e) {
+                              navigator.clipboard.writeText(childDirectLink);
+                              showToast('Link copied to clipboard!', 'info');
+                            }
+                          }}
+                          className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>Share</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
+                      💡 Tip: Your parent reference code is <strong className="font-mono text-indigo-700">{mainRegistrant.reference}</strong>. Your church/ministry affiliation (<strong className="text-slate-900">{mainRegistrant.answers?.['Church / Ministry'] || mainRegistrant.answers?.['q-ministry'] || 'General'}</strong>) will be automatically pre-filled on the child form.
+                    </div>
                   </div>
-                </div>
-
-                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
-                  💡 Tip: Your registration code is <strong className="font-mono">{mainRegistrant.reference}</strong>. Your church/ministry affiliation (<span className="font-semibold">{mainRegistrant.answers?.['Church / Ministry'] || 'General'}</span>) will be automatically applied to children you register.
-                </div>
-              </div>
+                );
+              })()}
 
               <div className="pt-2">
                 <button

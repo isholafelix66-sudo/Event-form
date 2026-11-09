@@ -757,7 +757,7 @@ class DatabaseService {
   async submitResponse(
     form: EventForm,
     answers: Record<string, any>,
-    options?: { agentId?: string; agentName?: string }
+    options?: { agentId?: string; agentName?: string; parent_registration_id?: string }
   ): Promise<{ response: FormResponse; isDuplicate: boolean }> {
     // Extract primary identity fields using form question definitions and answers
     const emailQ = form.questions.find(
@@ -812,12 +812,20 @@ class DatabaseService {
       ''
     ).trim();
 
-    // Check duplicate email for the same form
+    // Extract parent registration reference if present (from options or form answers)
+    const parentRegistrationId =
+      options?.parent_registration_id ||
+      answers['parent_registration_id'] ||
+      answers['parent_code'] ||
+      answers['Main Registrant Parent'] ||
+      undefined;
+
+    // Check duplicate email for the same form (bypass duplicate block if agent or child under parent)
     const existing = this.localResponses.find(
       (r) => r.formId === form.id && r.email.toLowerCase() === email && email !== ''
     );
 
-    if (existing && !options?.agentId) {
+    if (existing && !options?.agentId && !parentRegistrationId) {
       return { response: existing, isDuplicate: true };
     }
 
@@ -839,6 +847,7 @@ class DatabaseService {
       status: 'confirmed',
       agentId: options?.agentId,
       agentName: options?.agentName,
+      parent_registration_id: parentRegistrationId,
       createdAt: new Date().toISOString(),
     };
 

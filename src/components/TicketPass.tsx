@@ -112,10 +112,15 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         </p>
 
         {/* Confirmation Email Badge */}
-        <div className="mt-4 pt-3 border-t border-emerald-200/80 inline-flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-white/70 px-4 py-2 rounded-xl shadow-2xs">
-          <MailCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>
-            Confirmation email dispatched to <strong>{response.email}</strong>
+        <div className="mt-4 pt-3 border-t border-emerald-200/80 inline-flex flex-col sm:flex-row items-center justify-center gap-2 text-xs font-semibold text-emerald-800 bg-white/70 px-4 py-2.5 rounded-2xl shadow-2xs">
+          <div className="flex items-center gap-2">
+            <MailCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              Confirmation email dispatched to <strong>{response.email}</strong>
+            </span>
+          </div>
+          <span className="text-[11px] text-emerald-700 font-medium">
+            (Please check your inbox & spam for updates on your individual registration)
           </span>
         </div>
       </div>
@@ -211,6 +216,31 @@ export const TicketPass: React.FC<TicketPassProps> = ({
                   Contact Phone
                 </div>
                 <div className="text-xs font-semibold text-gray-700">{response.phone}</div>
+              </div>
+            )}
+
+            {(() => {
+              const church =
+                response.answers?.['Church / Ministry'] ||
+                response.answers?.['q-ministry'] ||
+                Object.entries(response.answers || {}).find(
+                  ([k, v]) => (k.toLowerCase().includes('church') || k.toLowerCase().includes('ministry')) && typeof v === 'string'
+                )?.[1];
+
+              return church ? (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">
+                    Church / Ministry Affiliation
+                  </div>
+                  <div className="text-xs font-semibold text-gray-800">{church}</div>
+                </div>
+              ) : null;
+            })()}
+
+            {response.parent_registration_id && (
+              <div className="p-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-950 font-medium">
+                <span className="font-bold text-indigo-800 block">Child / Dependent Pass</span>
+                <span>Linked under Parent Account: <strong className="font-mono text-indigo-600">{response.parent_registration_id}</strong></span>
               </div>
             )}
 

@@ -21,18 +21,21 @@ import {
   Clock,
   ShieldCheck,
   Building,
-  RefreshCw
+  RefreshCw,
+  Users
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
 interface PublicFormProps {
   slugOrId: string;
   isPreview?: boolean;
+  parentCode?: string | null;
 }
 
 export const PublicForm: React.FC<PublicFormProps> = ({
   slugOrId,
   isPreview = false,
+  parentCode = null,
 }) => {
   const { showToast } = useToast();
   const [form, setForm] = useState<EventForm | null>(null);
@@ -44,6 +47,15 @@ export const PublicForm: React.FC<PublicFormProps> = ({
     response: FormResponse;
     isDuplicate: boolean;
   } | null>(null);
+
+  // Resolved parent registration code (from prop or URL query/hash param)
+  const resolvedParentCode = parentCode || (() => {
+    if (typeof window === 'undefined') return null;
+    const match = window.location.hash.match(/[?&]parent=([^&]+)/i) || window.location.search.match(/[?&]parent=([^&]+)/i);
+    return match ? decodeURIComponent(match[1]).trim().toUpperCase() : null;
+  })();
+
+  const [parentRecord, setParentRecord] = useState<FormResponse | null>(null);
 
   // File input refs for image upload questions
   const imageInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -66,6 +78,45 @@ export const PublicForm: React.FC<PublicFormProps> = ({
       isMounted = false;
     };
   }, [slugOrId]);
+
+  // Fetch parent record if resolvedParentCode exists and prefill Church/Ministry
+  useEffect(() => {
+    if (!resolvedParentCode) return;
+    let isMounted = true;
+    dbService.getResponseByReference(resolvedParentCode).then((parent) => {
+      if (isMounted && parent) {
+        setParentRecord(parent);
+        const parentChurch =
+          parent.answers?.['Church / Ministry'] ||
+          parent.answers?.['q-ministry'] ||
+          Object.entries(parent.answers || {}).find(
+            ([k, v]) => (k.toLowerCase().includes('church') || k.toLowerCase().includes('ministry')) && typeof v === 'string'
+          )?.[1] ||
+          '';
+
+        if (parentChurch) {
+          setAnswers((prev) => {
+            const updated = { ...prev };
+            if (!updated['Church / Ministry']) {
+              updated['Church / Ministry'] = parentChurch;
+            }
+            if (form) {
+              const churchQ = form.questions.find(
+                (q) => q.title.toLowerCase().includes('church') || q.title.toLowerCase().includes('ministry')
+              );
+              if (churchQ && !updated[churchQ.id]) {
+                updated[churchQ.id] = parentChurch;
+              }
+            }
+            return updated;
+          });
+        }
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [resolvedParentCode, form]);
 
   const handleInputChange = (questionId: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -187,7 +238,12 @@ export const PublicForm: React.FC<PublicFormProps> = ({
 
     setSubmitting(true);
     try {
-      const res = await dbService.submitResponse(form, answers);
+      const options: { agentId?: string; agentName?: string; parent_registration_id?: string } = {};
+      if (resolvedParentCode) {
+        options.parent_registration_id = resolvedParentCode;
+      }
+
+      const res = await dbService.submitResponse(form, answers, options);
       setSubmissionResult(res);
 
       if (!res.isDuplicate) {
@@ -196,7 +252,12 @@ export const PublicForm: React.FC<PublicFormProps> = ({
           spread: 80,
           origin: { y: 0.55 },
         });
-        showToast('Registration confirmed! Official pass generated.', 'success');
+        showToast(
+          resolvedParentCode
+            ? 'Child registration confirmed! Please check email for individual registration updates.'
+            : 'Registration confirmed! Official pass generated. Please check email for updates.',
+          'success'
+        );
 
         // Automatically dispatch official registration pass email to attendee
         if (res.response.email) {
@@ -222,7 +283,7 @@ export const PublicForm: React.FC<PublicFormProps> = ({
                     <div style="padding: 20px 0; border-bottom: 1px dashed #cbd5e1;">
                       <p style="font-size: 14px; color: #1e293b; margin: 0 0 12px 0;">Dear <strong>${res.response.fullName}</strong>,</p>
                       <p style="font-size: 13px; color: #475569; margin: 0; line-height: 1.6;">
-                        Thank you for registering! Your official delegate pass has been confirmed. Please present your reference code at the entry gate upon arrival.
+                        Thank you for registering! Your official delegate pass has been confirmed. Please present your reference code at the entry gate upon arrival. Check your email for subsequent individual updates.
                       </p>
                     </div>
                     <div style="padding: 16px; background-color: #f8fafc; border-radius: 12px; margin: 16px 0; text-align: center;">
@@ -293,13 +354,34 @@ export const PublicForm: React.FC<PublicFormProps> = ({
   if (submissionResult) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 py-6 sm:py-12 px-3 sm:px-6">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto space-y-4">
           {submissionResult.isDuplicate && (
-            <div className="mb-4 bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-900 text-xs sm:text-sm font-medium">
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-900 text-xs sm:text-sm font-medium">
               <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
               <div>
                 <strong>Existing Registration Found:</strong> We recognized your email address. Your confirmed pass is displayed below.
               </div>
+            </div>
+          )}
+
+          {submissionResult.response.parent_registration_id && (
+            <div className="bg-indigo-50 border border-indigo-200 p-4 sm:p-5 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-indigo-950 text-xs sm:text-sm font-medium shadow-xs">
+              <div className="flex items-center gap-3">
+                <Users className="w-5 h-5 text-indigo-600 shrink-0" />
+                <div>
+                  <strong>Child Registration Confirmed!</strong> Linked to Parent Account (<span className="font-mono font-bold text-indigo-700">{submissionResult.response.parent_registration_id}</span>).
+                  <div className="text-xs text-indigo-700 mt-0.5">Please check your email for individual updates. Your parent can view and manage this pass in their portal dashboard.</div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  sessionStorage.setItem('eventform_quick_code', submissionResult.response.parent_registration_id!);
+                  window.location.hash = 'portal';
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shrink-0 cursor-pointer shadow-xs"
+              >
+                Open Parent Dashboard
+              </button>
             </div>
           )}
 
@@ -329,6 +411,36 @@ export const PublicForm: React.FC<PublicFormProps> = ({
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-100/70 to-slate-50 py-4 sm:py-8 px-3 sm:px-6 font-sans">
       <div className="max-w-2xl mx-auto space-y-4">
+        {/* Child Registration under Parent Account Indicator Banner */}
+        {resolvedParentCode && (
+          <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-indigo-500/30 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase tracking-wider mb-1">
+                  Child / Dependent Direct Link
+                </span>
+                <h3 className="text-base font-black text-gray-900 leading-snug">
+                  Registering under Parent: <span className="text-indigo-600 font-extrabold">{parentRecord ? parentRecord.fullName : resolvedParentCode}</span>
+                </h3>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  Parent Reference: <strong className="font-mono text-indigo-700">{resolvedParentCode}</strong>
+                  {(parentRecord?.answers?.['Church / Ministry'] || answers['Church / Ministry']) && (
+                    <> • Church / Ministry: <strong className="text-gray-800">{parentRecord?.answers?.['Church / Ministry'] || answers['Church / Ministry']}</strong></>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
+                <Check className="w-3.5 h-3.5" /> No Code Entry Required
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Form Cover Card */}
         <div className="bg-white rounded-3xl shadow-sm border border-gray-200/90 overflow-hidden">
           {/* Cover Banner */}
@@ -696,6 +808,32 @@ export const PublicForm: React.FC<PublicFormProps> = ({
               </div>
             );
           })}
+
+          {/* Universal Church / Ministry Question if not already in form definition */}
+          {!form.questions.some((q) => q.title.toLowerCase().includes('church') || q.title.toLowerCase().includes('ministry')) && (
+            <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-xs border border-gray-200/90 hover:border-gray-300 transition-all">
+              <div className="mb-3">
+                <label className="block text-sm sm:text-base font-extrabold text-gray-900 leading-snug flex items-center gap-2">
+                  <Building className="w-4 h-4 text-indigo-600" />
+                  <span>Church / Ministry Affiliation</span>
+                </label>
+                <p className="mt-1 text-xs text-gray-500 leading-relaxed">
+                  {resolvedParentCode
+                    ? 'Pre-filled from parent account (you may edit if different)'
+                    : 'Home church, parish, or ministry denomination'}
+                </p>
+              </div>
+              <div className="mt-3">
+                <input
+                  type="text"
+                  placeholder="e.g. Grace Chapel"
+                  value={answers['Church / Ministry'] || ''}
+                  onChange={(e) => handleInputChange('Church / Ministry', e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50/70 border border-gray-200 rounded-2xl text-sm text-gray-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Form Bottom Submission Bar */}
           <div className="bg-white rounded-3xl p-6 sm:p-7 border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
