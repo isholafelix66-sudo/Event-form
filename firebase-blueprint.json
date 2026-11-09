@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "Form": {
+      "title": "Form",
+      "description": "Represents an event registration form with questions, styling, and event configuration.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "published", "closed", "archived"] },
+        "eventDate": { "type": "string" },
+        "eventLocation": { "type": "string" },
+        "coverImage": { "type": "string" },
+        "themeColor": { "type": "string" },
+        "accentColor": { "type": "string" },
+        "fontFamily": { "type": "string" },
+        "confirmationMessage": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "questions": { "type": "array" }
+      },
+      "required": ["id", "title", "slug", "status"]
+    },
+    "Response": {
+      "title": "Response",
+      "description": "Represents a registrant submission to an event form.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "formId": { "type": "string" },
+        "formTitle": { "type": "string" },
+        "reference": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "answers": { "type": "object" },
+        "checkedIn": { "type": "boolean" },
+        "checkedInAt": { "type": "string" },
+        "checkedInBy": { "type": "string" },
+        "agentId": { "type": "string" },
+        "agentName": { "type": "string" },
+        "status": { "type": "string", "enum": ["confirmed", "pending", "attended", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "formId", "reference", "createdAt"]
+    },
+    "EmailLog": {
+      "title": "EmailLog",
+      "description": "Records dispatched or simulated announcement and ticket emails.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "recipientsCount": { "type": "number" },
+        "formId": { "type": "string" },
+        "status": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "subject", "status"]
+    }
+  },
+  "firestore": {
+    "/forms/{formId}": {
+      "schema": { "$ref": "Form" },
+      "description": "Event registration forms configuration."
+    },
+    "/responses/{responseId}": {
+      "schema": { "$ref": "Response" },
+      "description": "Registrant submission records across all forms."
+    },
+    "/email_logs/{logId}": {
+      "schema": { "$ref": "EmailLog" },
+      "description": "Email campaign delivery logs."
+    }
+  }
+}

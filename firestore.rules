@@ -1,0 +1,40 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Public connection test
+    match /test/connection {
+      allow read, write: if true;
+    }
+
+    // Forms collection
+    match /forms/{formId} {
+      allow read, create, update, delete: if true;
+      
+      // Nested responses subcollection
+      match /responses/{responseId} {
+        allow read, create, update, delete: if true;
+      }
+    }
+
+    // Top-level responses collection (for global search, QR check-in & analytics)
+    match /responses/{responseId} {
+      allow read, create, update, delete: if true;
+    }
+
+    // Settings collection (SMTP settings, branding, email logs)
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Email logs collection
+    match /email_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Default catch-all
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
