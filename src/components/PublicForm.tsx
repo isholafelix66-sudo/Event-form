@@ -343,8 +343,38 @@ export const PublicForm: React.FC<PublicFormProps> = ({
           </div>
           <h2 className="text-xl font-black text-gray-900 mb-2">Registration Form Not Found</h2>
           <p className="text-gray-600 text-xs sm:text-sm mb-4 leading-relaxed">
-            The registration link <code className="bg-gray-100 px-2 py-0.5 rounded font-mono font-bold text-gray-800">/f/{slugOrId}</code> is currently closed, unpublished, or has moved.
+            The registration link <code className="bg-gray-100 px-2 py-0.5 rounded font-mono font-bold text-gray-800">/f/{slugOrId}</code> was not found or has been removed.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Unpublished / Draft / Closed state (bypassed in admin preview mode)
+  if (!isPreview && form.status !== 'published') {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 text-center max-w-md w-full space-y-4">
+          <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center mx-auto shadow-xs">
+            <Lock className="w-7 h-7" />
+          </div>
+          <div>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+              {form.status === 'draft' ? 'Unpublished / Draft' : form.status === 'closed' ? 'Registration Closed' : 'Archived'}
+            </span>
+            <h2 className="text-xl font-black text-gray-900 mt-2">{form.title}</h2>
+            <p className="text-gray-500 text-xs sm:text-sm mt-2 leading-relaxed">
+              This event registration form is currently <strong>unpublished</strong> and is not accepting delegate registrations. Please check back later or contact the event administrator.
+            </p>
+          </div>
+          <div className="pt-2">
+            <a
+              href="#forms"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition"
+            >
+              Return to Events Directory
+            </a>
+          </div>
         </div>
       </div>
     );

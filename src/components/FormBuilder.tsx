@@ -39,7 +39,9 @@ import {
   ChevronDown,
   CalendarDays,
   ToggleLeft,
-  UserCheck
+  UserCheck,
+  EyeOff,
+  Globe
 } from 'lucide-react';
 import { PublicForm } from './PublicForm';
 import { useToast } from '../context/ToastContext';
@@ -616,14 +618,26 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             </button>
           )}
 
-          <button
-            onClick={() => handleSave('draft')}
-            disabled={saveStatus === 'saving'}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-xs font-bold rounded-xl shadow-2xs transition cursor-pointer disabled:opacity-50"
-          >
-            <Save className="w-3.5 h-3.5 text-gray-500" />
-            Save Draft
-          </button>
+          {form.status === 'published' ? (
+            <button
+              onClick={() => handleSave('draft')}
+              disabled={saveStatus === 'saving'}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold rounded-xl shadow-2xs transition cursor-pointer disabled:opacity-50"
+              title="Unpublish this form to stop accepting public submissions"
+            >
+              <EyeOff className="w-3.5 h-3.5 text-amber-600" />
+              Unpublish Form
+            </button>
+          ) : (
+            <button
+              onClick={() => handleSave('draft')}
+              disabled={saveStatus === 'saving'}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-xs font-bold rounded-xl shadow-2xs transition cursor-pointer disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5 text-gray-500" />
+              Save Draft
+            </button>
+          )}
 
           <button
             onClick={() => handleSave('published')}

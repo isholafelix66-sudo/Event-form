@@ -9,7 +9,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { EventForm, FormResponse, EmailLog, SMTPSettings, SiteSettings } from '../types';
+import { EventForm, FormResponse, EmailLog, SMTPSettings, SiteSettings, FormStatus } from '../types';
 
 const LOCAL_FORMS_KEY = 'eventform_local_forms';
 const LOCAL_RESPONSES_KEY = 'eventform_local_responses';
@@ -443,66 +443,64 @@ class DatabaseService {
       }
 
       const storedForms = localStorage.getItem(LOCAL_FORMS_KEY);
-      if (storedForms) {
-        this.localForms = JSON.parse(storedForms);
+      if (storedForms !== null) {
+        try {
+          this.localForms = JSON.parse(storedForms);
+        } catch {
+          this.localForms = [];
+        }
       } else {
-        // Fallback default only if local storage is completely uninitialized
-        this.localForms = [...INITIAL_SEED_FORMS];
+        // Strictly adhere to: NEVER create forms without user permission
+        this.localForms = [];
       }
 
       const storedResponses = localStorage.getItem(LOCAL_RESPONSES_KEY);
-      if (storedResponses) {
-        this.localResponses = JSON.parse(storedResponses);
+      if (storedResponses !== null) {
+        try {
+          this.localResponses = JSON.parse(storedResponses);
+        } catch {
+          this.localResponses = [];
+        }
       } else {
-        this.localResponses = [...INITIAL_SEED_RESPONSES];
+        // Strictly adhere to: NEVER create responses without user permission
+        this.localResponses = [];
       }
 
       const storedEmailLogs = localStorage.getItem(LOCAL_EMAIL_LOGS_KEY);
       if (storedEmailLogs) {
         this.localEmailLogs = JSON.parse(storedEmailLogs);
       } else {
-        this.localEmailLogs = [
-          {
-            id: 'log-1',
-            subject: 'Confirmation & Digital Pass for Worship Encounter 3',
-            recipientsCount: 2,
-            formId: 'form-worship-encounter-3',
-            formTitle: 'Worship Encounter 3',
-            status: 'sent',
-            recipientType: 'form_specific',
-            timestamp: new Date(Date.now() - 86400000 * 1).toISOString(),
-            sender: 'events@eventform.io',
-          },
-        ];
+        this.localEmailLogs = [];
       }
     } catch (e) {
-      this.localForms = [...INITIAL_SEED_FORMS];
-      this.localResponses = [...INITIAL_SEED_RESPONSES];
+      this.localForms = [];
+      this.localResponses = [];
       this.siteSettings = { ...DEFAULT_SITE_SETTINGS };
     }
   }
 
-  // Ensure remote DB has initial seed data without overwriting custom forms
+  // Hydrate from remote DB if exists, NEVER auto-create forms or responses without user permission
   async seedRemoteIfEmpty() {
     if (this.initialized) return;
     this.initialized = true;
     try {
       const snap = await getDocs(collection(db, 'forms'));
-      if (snap.empty) {
-        // Only seed to remote if Firestore is truly brand new and empty
-        const formsToSeed = this.localForms && this.localForms.length > 0 ? this.localForms : INITIAL_SEED_FORMS;
-        for (const f of formsToSeed) {
-          await setDoc(doc(db, 'forms', f.id), cleanForFirestore(f));
-        }
-        for (const r of this.localResponses) {
-          await setDoc(doc(db, 'responses', r.id), cleanForFirestore(r));
-        }
-        await setDoc(doc(db, 'settings', 'site'), cleanForFirestore(this.siteSettings));
-      } else {
-        // Authoritative hydration directly from Cloud Firestore
+      if (!snap.empty) {
         const remoteForms = snap.docs.map((d) => d.data() as EventForm);
         this.localForms = remoteForms;
         localStorage.setItem(LOCAL_FORMS_KEY, JSON.stringify(this.localForms));
+      } else {
+        this.localForms = [];
+        localStorage.setItem(LOCAL_FORMS_KEY, JSON.stringify([]));
+      }
+
+      const respSnap = await getDocs(collection(db, 'responses'));
+      if (!respSnap.empty) {
+        this.localResponses = respSnap.docs.map((d) => d.data() as FormResponse);
+        localStorage.setItem(LOCAL_RESPONSES_KEY, JSON.stringify(this.localResponses));
+      } else {
+        this.localResponses = [];
+        localStorage.setItem(LOCAL_RESPONSES_KEY, JSON.stringify([]));
       }
 
       // Check site settings from Firestore
@@ -512,7 +510,7 @@ class DatabaseService {
         localStorage.setItem(LOCAL_SITE_SETTINGS_KEY, JSON.stringify(this.siteSettings));
       }
     } catch (err) {
-      console.warn('Firestore seed/hydration notice (using persistent cache):', err);
+      console.warn('Firestore hydration notice (using persistent cache):', err);
     }
   }
 
@@ -538,17 +536,14 @@ class DatabaseService {
   async getForms(): Promise<EventForm[]> {
     try {
       const snap = await getDocs(collection(db, 'forms'));
-      if (!snap.empty) {
-        const remoteForms = snap.docs.map((d) => d.data() as EventForm);
-        this.localForms = remoteForms;
-        localStorage.setItem(LOCAL_FORMS_KEY, JSON.stringify(this.localForms));
-        return remoteForms;
-      }
+      const remoteForms = snap.docs.map((d) => d.data() as EventForm);
+      this.localForms = remoteForms;
+      localStorage.setItem(LOCAL_FORMS_KEY, JSON.stringify(this.localForms));
+      return remoteForms;
     } catch (err) {
       console.warn('Using persistent local forms cache due to:', err);
+      return this.localForms;
     }
-    await this.seedRemoteIfEmpty();
-    return this.localForms;
   }
 
   getCachedForm(slugOrId: string): EventForm | null {
@@ -634,6 +629,33 @@ class DatabaseService {
     }
   }
 
+  async updateFormStatus(formId: string, status: FormStatus): Promise<EventForm | null> {
+    const f = this.localForms.find((item) => item.id === formId);
+    if (!f) return null;
+
+    f.status = status;
+    f.updatedAt = new Date().toISOString();
+    localStorage.setItem(LOCAL_FORMS_KEY, JSON.stringify(this.localForms));
+
+    try {
+      await updateDoc(doc(db, 'forms', formId), {
+        status,
+        updatedAt: f.updatedAt,
+      });
+    } catch (e) {
+      console.warn('Firestore updateFormStatus sync notice:', e);
+    }
+    return f;
+  }
+
+  async unpublishForm(formId: string): Promise<EventForm | null> {
+    return this.updateFormStatus(formId, 'draft');
+  }
+
+  async publishForm(formId: string): Promise<EventForm | null> {
+    return this.updateFormStatus(formId, 'published');
+  }
+
   async deleteResponsesForForm(formId: string): Promise<number> {
     const toDelete = this.localResponses.filter((r) => r.formId === formId);
     this.localResponses = this.localResponses.filter((r) => r.formId !== formId);
@@ -698,13 +720,11 @@ class DatabaseService {
 
   // Responses
   async getResponses(formId?: string): Promise<FormResponse[]> {
-    await this.seedRemoteIfEmpty();
     try {
       const snap = await getDocs(collection(db, 'responses'));
-      if (!snap.empty) {
-        this.localResponses = snap.docs.map((d) => d.data() as FormResponse);
-        localStorage.setItem(LOCAL_RESPONSES_KEY, JSON.stringify(this.localResponses));
-      }
+      const list = snap.docs.map((d) => d.data() as FormResponse);
+      this.localResponses = list;
+      localStorage.setItem(LOCAL_RESPONSES_KEY, JSON.stringify(this.localResponses));
     } catch (err) {
       console.warn('Using local responses cache due to:', err);
     }
@@ -1083,12 +1103,10 @@ class DatabaseService {
       const unsub = onSnapshot(
         collection(db, 'forms'),
         (snap) => {
-          if (!snap.empty) {
-            const forms = snap.docs.map((d) => d.data() as EventForm);
-            this.localForms = forms;
-            localStorage.setItem(LOCAL_FORMS_KEY, JSON.stringify(forms));
-            callback(forms);
-          }
+          const forms = snap.docs.map((d) => d.data() as EventForm);
+          this.localForms = forms;
+          localStorage.setItem(LOCAL_FORMS_KEY, JSON.stringify(forms));
+          callback(forms);
         },
         (err) => {
           console.warn('Real-time forms listener notice (using local fallback):', err);
@@ -1109,13 +1127,11 @@ class DatabaseService {
       const unsub = onSnapshot(
         collection(db, 'responses'),
         (snap) => {
-          if (!snap.empty) {
-            const list = snap.docs.map((d) => d.data() as FormResponse);
-            list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-            this.localResponses = list;
-            localStorage.setItem(LOCAL_RESPONSES_KEY, JSON.stringify(list));
-            callback(filterFn(list));
-          }
+          const list = snap.docs.map((d) => d.data() as FormResponse);
+          list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          this.localResponses = list;
+          localStorage.setItem(LOCAL_RESPONSES_KEY, JSON.stringify(list));
+          callback(filterFn(list));
         },
         (err) => {
           console.warn('Real-time responses listener notice (using local fallback):', err);
