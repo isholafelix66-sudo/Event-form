@@ -733,18 +733,68 @@ class DatabaseService {
     return responses.find((r) => r.id === responseId) || null;
   }
 
-  async updateResponseParent(responseId: string, parentReference: string): Promise<void> {
+  async updateResponseParent(
+    responseId: string,
+    parentReference: string | null,
+    syncChurch: boolean = false
+  ): Promise<FormResponse | null> {
     const resp = this.localResponses.find((r) => r.id === responseId);
-    if (resp) {
-      resp.parent_registration_id = parentReference;
-      localStorage.setItem(LOCAL_RESPONSES_KEY, JSON.stringify(this.localResponses));
-      try {
-        await updateDoc(doc(db, 'responses', responseId), {
-          parent_registration_id: parentReference,
-        });
-      } catch (e) {
-        console.warn('Firestore updateResponseParent sync:', e);
+    if (!resp) return null;
+
+    if (parentReference && parentReference.trim()) {
+      const cleanRef = parentReference.trim().toUpperCase();
+      resp.parent_registration_id = cleanRef;
+      if (!resp.answers) resp.answers = {};
+      resp.answers['parent_registration_id'] = cleanRef;
+      resp.answers['Main Registrant Parent'] = cleanRef;
+      resp.answers['Registration Type'] = 'Child / Dependent';
+
+      if (syncChurch) {
+        const parentResp = this.localResponses.find(
+          (p) => p.reference.toUpperCase() === cleanRef || p.id === cleanRef
+        );
+        if (parentResp) {
+          const parentChurch =
+            parentResp.answers?.['Church / Ministry'] ||
+            parentResp.answers?.['church'] ||
+            Object.entries(parentResp.answers || {}).find(([k, v]) =>
+              typeof v === 'string' && (k.toLowerCase().includes('church') || k.toLowerCase().includes('ministry'))
+            )?.[1];
+          if (parentChurch) {
+            resp.answers['Church / Ministry'] = parentChurch;
+          }
+        }
       }
+    } else {
+      delete resp.parent_registration_id;
+      if (resp.answers) {
+        delete resp.answers['parent_registration_id'];
+        delete resp.answers['Main Registrant Parent'];
+        if (resp.answers['Registration Type'] === 'Child / Dependent') {
+          delete resp.answers['Registration Type'];
+        }
+      }
+    }
+
+    localStorage.setItem(LOCAL_RESPONSES_KEY, JSON.stringify(this.localResponses));
+    try {
+      await updateDoc(doc(db, 'responses', responseId), {
+        parent_registration_id: resp.parent_registration_id || null,
+        answers: cleanForFirestore(resp.answers || {}),
+      });
+    } catch (e) {
+      console.warn('Firestore updateResponseParent sync:', e);
+    }
+    return resp;
+  }
+
+  async batchUpdateResponsesParent(
+    responseIds: string[],
+    parentReference: string | null,
+    syncChurch: boolean = false
+  ): Promise<void> {
+    for (const id of responseIds) {
+      await this.updateResponseParent(id, parentReference, syncChurch);
     }
   }
 

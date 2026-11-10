@@ -45,6 +45,7 @@ export const BulkRegistration: React.FC<BulkRegistrationProps> = ({
   const [forms, setForms] = useState<EventForm[]>([]);
   const [selectedFormId, setSelectedFormId] = useState<string>('');
   const [batchChurch, setBatchChurch] = useState<string>('');
+  const [batchParentRef, setBatchParentRef] = useState<string>('');
   const [rows, setRows] = useState<QuickAttendeeRow[]>([
     { id: '1', fullName: '', email: '', phone: '', church: '' },
     { id: '2', fullName: '', email: '', phone: '', church: '' },
@@ -151,10 +152,18 @@ export const BulkRegistration: React.FC<BulkRegistrationProps> = ({
           answers[churchQuestion.id] = churchValue;
         }
 
+        const cleanParent = batchParentRef.trim().toUpperCase();
+        if (cleanParent) {
+          answers['parent_registration_id'] = cleanParent;
+          answers['Main Registrant Parent'] = cleanParent;
+          answers['Registration Type'] = 'Child / Dependent';
+        }
+
         // Submit response directly into selected event form responses
         const { response } = await dbService.submitResponse(activeForm, answers, {
           agentId: currentAgentId,
           agentName: currentAgentName,
+          parent_registration_id: cleanParent || undefined,
         });
         createdResponses.push(response);
       }
@@ -363,14 +372,36 @@ export const BulkRegistration: React.FC<BulkRegistrationProps> = ({
               <div className="p-3 bg-amber-50/70 rounded-2xl border border-amber-200/80 text-xs space-y-1.5">
                 <div className="flex items-center gap-1.5 font-bold text-amber-900">
                   <Church className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Default Church / Ministry Affiliation</span>
+                  <span>Default Church / Ministry</span>
                 </div>
                 <input
                   type="text"
-                  placeholder="e.g. Grace Chapel, London (auto-fills below)"
+                  placeholder="e.g. Grace Chapel (auto-fills below)"
                   value={batchChurch}
                   onChange={(e) => handleBatchChurchChange(e.target.value)}
                   className="w-full px-3 py-1.5 text-xs bg-white border border-amber-200 rounded-xl focus:ring-1 focus:ring-amber-500 focus:outline-none text-slate-900"
+                />
+              </div>
+
+              {/* Optional Parent Reference for the entire batch */}
+              <div className="p-3 bg-indigo-50/70 rounded-2xl border border-indigo-200/80 text-xs space-y-1.5 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-indigo-950">
+                    <Users className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Link Batch under Parent Account (Optional)</span>
+                  </div>
+                  {batchParentRef && (
+                    <span className="text-[10px] font-mono font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                      Parent: {batchParentRef.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter Parent Registration Reference (e.g. EVT-2026-W301) to link this batch as dependents"
+                  value={batchParentRef}
+                  onChange={(e) => setBatchParentRef(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-xl focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono text-slate-900 uppercase tracking-wider"
                 />
               </div>
             </div>
