@@ -51,7 +51,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showPublicMenu, setShowPublicMenu] = useState(false);
-  const [showMobileMoreMenu, setShowMobileMoreMenu] = useState(false);
 
   const allNavItems = [
     { id: 'overview', label: 'Overview', icon: Sparkles, roles: ['super_admin', 'admin'] },
@@ -308,83 +307,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* MOBILE BOTTOM NAVIGATION DOCK (With classic morphing liquid dip motion & active floating circle) */}
+      {/* MOBILE BOTTOM NAVIGATION DOCK (Direct 1-tap access to all 8 modules for Admin) */}
       <AnimatedBottomNav
         activeTab={activeTab}
         onTabChange={onTabChange}
         currentRole={currentRole}
-        onOpenMoreMenu={() => setShowMobileMoreMenu(true)}
-        accentColor={siteSettings.accentColor || '#84cc16'}
       />
-
-      {/* Mobile "More" Drawer Modal for Admin */}
-      {showMobileMoreMenu && !isRoleRestricted && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end">
-          <div className="w-full bg-white rounded-t-3xl p-6 space-y-4 shadow-2xl animate-in slide-in-from-bottom-10">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <span className="font-black text-sm text-gray-900">Admin Modules & Operations</span>
-              <button
-                onClick={() => setShowMobileMoreMenu(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button
-                onClick={() => {
-                  onTabChange('bulk');
-                  setShowMobileMoreMenu(false);
-                }}
-                className={`p-3.5 rounded-2xl border text-left flex flex-col items-start gap-2 cursor-pointer ${
-                  activeTab === 'bulk' ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                <UserCheck className="w-5 h-5 text-indigo-600" />
-                <div>
-                  <div className="font-bold text-xs text-gray-900">Bulk Registration</div>
-                  <div className="text-[10px] text-gray-500">Agent fast entry desk</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => {
-                  onTabChange('email');
-                  setShowMobileMoreMenu(false);
-                }}
-                className={`p-3.5 rounded-2xl border text-left flex flex-col items-start gap-2 cursor-pointer ${
-                  activeTab === 'email' ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                <Mail className="w-5 h-5 text-indigo-600" />
-                <div>
-                  <div className="font-bold text-xs text-gray-900">Email Centre</div>
-                  <div className="text-[10px] text-gray-500">Announcements & Delivery</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => {
-                  onTabChange('settings');
-                  setShowMobileMoreMenu(false);
-                }}
-                className={`col-span-2 p-3.5 rounded-2xl border text-left flex items-center gap-3 cursor-pointer ${
-                  activeTab === 'settings' ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                <Settings className="w-5 h-5 text-indigo-600 shrink-0" />
-                <div>
-                  <div className="font-bold text-xs text-gray-900">Platform Settings & Data Cleanup</div>
-                  <div className="text-[10px] text-gray-500">
-                    Customize website name, delete records & manage roles
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };
