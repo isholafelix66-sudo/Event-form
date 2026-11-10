@@ -53,8 +53,9 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   footerText: 'Powered by EventForm • Enterprise Event Management Platform',
 };
 
-// Initial high-quality seed forms
-const INITIAL_SEED_FORMS: EventForm[] = [
+// No automatic seed forms - strict adherence to user instructions
+const INITIAL_SEED_FORMS: EventForm[] = [];
+/*
   {
     id: 'form-worship-encounter-3',
     slug: 'worship-encounter-3',
@@ -248,9 +249,11 @@ const INITIAL_SEED_FORMS: EventForm[] = [
     ],
   },
 ];
+*/
 
-// Initial seed responses for realistic demo data
-const INITIAL_SEED_RESPONSES: FormResponse[] = [
+// No automatic seed responses - strict adherence to user instructions
+const INITIAL_SEED_RESPONSES: FormResponse[] = [];
+/*
   {
     id: 'resp-1',
     formId: 'form-worship-encounter-3',
@@ -361,6 +364,7 @@ const INITIAL_SEED_RESPONSES: FormResponse[] = [
     },
   },
 ];
+*/
 
 class DatabaseService {
   private localForms: EventForm[] = [];

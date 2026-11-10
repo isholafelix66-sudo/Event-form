@@ -21,7 +21,9 @@ import {
   Globe,
   Lock,
   CheckSquare,
-  Square
+  Square,
+  Bell,
+  ChevronDown
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { DaysToEventCounter } from './DaysToEventCounter';
@@ -32,6 +34,7 @@ interface FormsListProps {
   onEditForm: (formId: string) => void;
   onViewResponses: (formId: string) => void;
   onOpenPublicLink: (slug: string) => void;
+  onSendReminder?: (formId: string, reminderType: 'reminder_2days' | 'reminder_1day' | 'reminder_dday') => void;
   currentRole?: UserRole;
 }
 
@@ -40,6 +43,7 @@ export const FormsList: React.FC<FormsListProps> = ({
   onEditForm,
   onViewResponses,
   onOpenPublicLink,
+  onSendReminder,
   currentRole = 'super_admin',
 }) => {
   const { showToast } = useToast();
@@ -52,6 +56,7 @@ export const FormsList: React.FC<FormsListProps> = ({
   const [deleteResponsesToo, setDeleteResponsesToo] = useState(true);
   const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
   const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
+  const [reminderMenuFormId, setReminderMenuFormId] = useState<string | null>(null);
 
   const canManage = currentRole === 'super_admin' || currentRole === 'admin';
 
@@ -469,6 +474,72 @@ export const FormsList: React.FC<FormsListProps> = ({
                           </>
                         )}
                       </button>
+                    )}
+
+                    {/* Quick Send Reminder Dropdown (2 Days, 1 Day, D-Day) */}
+                    {canManage && onSendReminder && (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setReminderMenuFormId(reminderMenuFormId === form.id ? null : form.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-xl transition cursor-pointer bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 mr-1"
+                          title="Send Countdown Reminder Email (2 Days, 1 Day, D-Day)"
+                        >
+                          <Bell className="w-3 h-3 text-indigo-600" />
+                          <span>Remind</span>
+                          <ChevronDown className="w-3 h-3 text-indigo-500" />
+                        </button>
+
+                        {reminderMenuFormId === form.id && (
+                          <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-200 p-2 z-30 space-y-1">
+                            <div className="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
+                              Dispatch Countdown Reminder
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReminderMenuFormId(null);
+                                onSendReminder(form.id, 'reminder_2days');
+                              }}
+                              className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-amber-50 text-gray-800 hover:text-amber-800 flex items-center gap-2 cursor-pointer transition"
+                            >
+                              <span className="text-amber-500 font-bold">⏳</span>
+                              <div>
+                                <div className="font-bold">2 Days to Go</div>
+                                <div className="text-[10px] text-gray-500">48h arrival & pass check</div>
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReminderMenuFormId(null);
+                                onSendReminder(form.id, 'reminder_1day');
+                              }}
+                              className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-orange-50 text-gray-800 hover:text-orange-800 flex items-center gap-2 cursor-pointer transition"
+                            >
+                              <span className="text-orange-500 font-bold">🔥</span>
+                              <div>
+                                <div className="font-bold">1 Day to Go</div>
+                                <div className="text-[10px] text-gray-500">Tomorrow / doors open</div>
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReminderMenuFormId(null);
+                                onSendReminder(form.id, 'reminder_dday');
+                              }}
+                              className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-emerald-50 text-gray-800 hover:text-emerald-800 flex items-center gap-2 cursor-pointer transition"
+                            >
+                              <span className="text-emerald-500 font-bold">🎉</span>
+                              <div>
+                                <div className="font-bold">D-Day (Today!)</div>
+                                <div className="text-[10px] text-gray-500">Live entry alert & pass</div>
+                              </div>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     <button

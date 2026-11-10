@@ -20,10 +20,22 @@ import {
   Calendar,
   MapPin,
   User,
-  Check
+  Check,
+  Flame,
+  Bell,
+  Zap,
+  ChevronRight
 } from 'lucide-react';
 
-export const EmailCentre: React.FC = () => {
+export interface EmailCentreProps {
+  initialFormId?: string | null;
+  initialTemplate?: string | null;
+}
+
+export const EmailCentre: React.FC<EmailCentreProps> = ({
+  initialFormId = null,
+  initialTemplate = null,
+}) => {
   const { showToast } = useToast();
   const [forms, setForms] = useState<EventForm[]>([]);
   const [responses, setResponses] = useState<FormResponse[]>([]);
@@ -72,11 +84,45 @@ export const EmailCentre: React.FC = () => {
       } else {
         setVerificationStatus('unverified');
       }
-      if (f.length > 0) {
-        setSelectedFormId(f[0].id);
+
+      // Priority: initialFormId -> hash query param -> worship encounter form -> first form
+      let targetFormId = initialFormId;
+      const hash = window.location.hash;
+      if (!targetFormId && hash.includes('form=')) {
+        const match = hash.match(/form=([^&]+)/);
+        if (match) targetFormId = decodeURIComponent(match[1]);
+      }
+
+      if (!targetFormId) {
+        const worshipForm = f.find(
+          (item) =>
+            item.title?.toLowerCase().includes('worship') ||
+            item.title?.toLowerCase().includes('encounter') ||
+            item.slug?.toLowerCase().includes('worship')
+        );
+        if (worshipForm) {
+          targetFormId = worshipForm.id;
+        } else if (f.length > 0) {
+          targetFormId = f[0].id;
+        }
+      }
+
+      if (targetFormId) {
+        setSelectedFormId(targetFormId);
+      }
+
+      // Check initial template from props or hash
+      let targetTemplate = initialTemplate;
+      if (!targetTemplate && hash.includes('template=')) {
+        const match = hash.match(/template=([^&]+)/);
+        if (match) targetTemplate = decodeURIComponent(match[1]);
+      }
+
+      if (targetTemplate) {
+        handleTemplateSelect(targetTemplate, targetFormId, f);
       }
     });
-  }, []);
+  }, [initialFormId, initialTemplate]);
 
   const calculateTargetCount = (): number => {
     if (recipientAudience === 'all') {
@@ -91,26 +137,77 @@ export const EmailCentre: React.FC = () => {
     return 0;
   };
 
-  const handleTemplateSelect = (type: string) => {
-    if (type === 'confirmation') {
-      setSubject('Registration Confirmed: {{event_title}}');
+  const handleSelectCountdownReminder = (
+    type: 'reminder_2days' | 'reminder_1day' | 'reminder_dday'
+  ) => {
+    // Priority: Worship Encounter form, or selected form, or first form
+    const worshipForm = forms.find(
+      (f) =>
+        f.title?.toLowerCase().includes('worship') ||
+        f.title?.toLowerCase().includes('encounter') ||
+        f.slug?.toLowerCase().includes('worship')
+    );
+    const targetFormId = worshipForm ? worshipForm.id : selectedFormId || forms[0]?.id || '';
+    if (targetFormId) {
+      setSelectedFormId(targetFormId);
+    }
+    setRecipientAudience('form_specific');
+    setActiveTab('compose');
+    handleTemplateSelect(type, targetFormId, forms);
+    const label =
+      type === 'reminder_2days'
+        ? '⏳ 2 Days to Go'
+        : type === 'reminder_1day'
+        ? '🔥 1 Day to Go'
+        : '🎉 D-Day (Today)';
+    const formTitle = forms.find((f) => f.id === targetFormId)?.title || 'Worship Encounter';
+    showToast(`Loaded ${label} reminder preset for "${formTitle}"`, 'success');
+  };
+
+  const handleTemplateSelect = (
+    type: string,
+    overrideFormId?: string | null,
+    overrideForms?: EventForm[]
+  ) => {
+    const formsList = overrideForms || forms;
+    const activeFormId = overrideFormId || selectedFormId;
+    const currentForm = formsList.find((f) => f.id === activeFormId) || formsList[0];
+    const eventName = currentForm?.title || 'Worship Encounter 3';
+
+    if (type === 'reminder_2days') {
+      setSubject(`⏳ 2 Days to Go! ${eventName} – Important Arrival & Gate Information`);
       setBody(
-        'Dear {{name}},\n\nYour official registration for {{event_title}} is confirmed! Your pass reference is {{reference}}.\n\n📅 Date: {{event_date}}\n📍 Location: {{event_location}}\n\nPlease have your reference code or digital QR ticket ready at the entry desk.\n\nWe look forward to welcoming you!\n\nBest regards,\nEvent Management Team'
+        `Dear {{name}},\n\nWe are officially 2 DAYS AWAY from {{event_title}}! The anticipation is high, and our teams are making final preparations to welcome you for an unforgettable, life-transforming time.\n\nEVENT SCHEDULE & LOCATION:\n📅 Date & Time: {{event_date}}\n📍 Venue: {{event_location}}\n🎟️ Your Pass Reference: {{reference}}\n\nIMPORTANT PREPARATION & ARRIVAL CHECKLIST:\n1. Fast-Track Check-In: Please have your Reference Code ({{reference}}) or your Digital QR Pass ready on your phone upon arrival at the gate.\n2. Family & Child Registrations: If you registered children or family members under your code, please ensure they arrive with you or have their respective pass codes ready.\n3. Arrive Early: Doors open 45 minutes prior to start time. Seating is on a first-arrival basis.\n4. Venue & Parking: On-site parking stewards will be stationed at {{event_location}} to guide you upon arrival.\n5. Spiritual Preparation: Come with an open heart, expectant for a mighty move of God!\n\nWe cannot wait to worship together with you!\n\nWarm regards,\n{{event_title}} Organizing Committee`
+      );
+    } else if (type === 'reminder_1day') {
+      setSubject(`🔥 Tomorrow! 1 Day to Go for ${eventName} – Final Event Details`);
+      setBody(
+        `Dear {{name}},\n\nTOMORROW IS THE BIG DAY! In less than 24 hours, {{event_title}} will officially begin.\n\nYour registration is confirmed, your seat is ready, and we cannot wait to worship together!\n\nFINAL EVENT COUNTDOWN:\n📅 Date & Time: {{event_date}}\n📍 Venue: {{event_location}}\n🎟️ Your Pass Reference: {{reference}}\n\nFINAL CHECKLIST FOR TOMORROW:\n• Keep your Pass Reference ({{reference}}) handy for instant badge/wristband collection at the check-in desk.\n• Beat the Queue: Doors open 45 minutes before start time. Arrive early to secure your preferred seats.\n• Child & Youth Registrations: Dedicated family check-in desks will be operational from door-open time.\n• Parking & Transit: Free parking is available on-site. Public transport connections are within a short walk of {{event_location}}.\n• Need assistance? Look for our official ushering and protocol team members upon arrival.\n\nSee you tomorrow at {{event_location}}!\n\nWith love and expectation,\n{{event_title}} Organizing Committee`
+      );
+    } else if (type === 'reminder_dday') {
+      setSubject(`🎉 TODAY IS THE DAY! ${eventName} is Here – Doors Open Soon!`);
+      setBody(
+        `Dear {{name}},\n\nTHE WAIT IS OVER – TODAY IS THE DAY!\n\n{{event_title}} is taking place TODAY, and our teams are on site eagerly waiting to welcome you through the doors!\n\nYOUR ACCESS PASS FOR TODAY:\n🎟️ Reference Code: {{reference}}\n📍 Venue: {{event_location}}\n⏰ Schedule: {{event_date}}\n\nON-SITE ARRIVAL INSTRUCTIONS:\n• Doors open shortly. Please arrive early for hassle-free check-in.\n• Show your Reference Code ({{reference}}) or QR code to any usher or check-in officer at the front desk.\n• If you need any assistance upon arrival, our welcoming team wearing official badges is ready to help.\n\nTravel safely, and let's encounter God together today!\n\nSee you in a few moments,\n{{event_title}} Team`
+      );
+    } else if (type === 'confirmation') {
+      setSubject(`Registration Confirmed: ${eventName}`);
+      setBody(
+        `Dear {{name}},\n\nYour official registration for {{event_title}} is confirmed! Your pass reference is {{reference}}.\n\n📅 Date: {{event_date}}\n📍 Location: {{event_location}}\n\nPlease have your reference code or digital QR ticket ready at the entry desk.\n\nWe look forward to welcoming you!\n\nBest regards,\nEvent Management Team`
       );
     } else if (type === 'reminder') {
-      setSubject('Event Reminder: {{event_title}} is Coming Up!');
+      setSubject(`Event Reminder: ${eventName} is Coming Up!`);
       setBody(
-        'Hello {{name}},\n\nThis is a friendly reminder that {{event_title}} takes place on {{event_date}} at {{event_location}}.\n\nYour Pass Reference: {{reference}}\n\nDoors open early for registration check-in. Safe travels!\n\nWarm regards,\nOrganizing Committee'
+        `Hello {{name}},\n\nThis is a friendly reminder that {{event_title}} takes place on {{event_date}} at {{event_location}}.\n\nYour Pass Reference: {{reference}}\n\nDoors open early for registration check-in. Safe travels!\n\nWarm regards,\nOrganizing Committee`
       );
     } else if (type === 'directions') {
-      setSubject('Venue & Access Information: {{event_title}}');
+      setSubject(`Venue & Access Information: ${eventName}`);
       setBody(
-        'Dear {{name}},\n\nHere are the arrival directions for {{event_title}} at {{event_location}}.\n\nReference Code: {{reference}}\nEvent Schedule: {{event_date}}\n\nUpon arrival, follow the registration signs to the main hall.\n\nSee you soon!'
+        `Dear {{name}},\n\nHere are the arrival directions for {{event_title}} at {{event_location}}.\n\nReference Code: {{reference}}\nEvent Schedule: {{event_date}}\n\nUpon arrival, follow the registration signs to the main hall.\n\nSee you soon!`
       );
     } else if (type === 'thankyou') {
-      setSubject('Thank You for Attending {{event_title}}!');
+      setSubject(`Thank You for Attending ${eventName}!`);
       setBody(
-        'Dear {{name}},\n\nThank you for participating in {{event_title}}! We hope you had an inspiring experience.\n\nYour Reference Code was: {{reference}}.\n\nWe would love to hear your thoughts and feedback.\n\nWarm regards,\nEvent Team'
+        `Dear {{name}},\n\nThank you for participating in {{event_title}}! We hope you had an inspiring experience.\n\nYour Reference Code was: {{reference}}.\n\nWe would love to hear your thoughts and feedback.\n\nWarm regards,\nEvent Team`
       );
     }
   };
@@ -182,6 +279,14 @@ export const EmailCentre: React.FC = () => {
 
     try {
       const targetForm = forms.find((f) => f.id === selectedFormId);
+      const formDateStr = targetForm?.eventDate
+        ? new Date(targetForm.eventDate).toLocaleString('en-US', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })
+        : 'Nov 28, 2026 at 6:00 PM';
+      const formLocationStr = targetForm?.eventLocation || 'Grace Cathedral Auditorium, London';
+      const formTitleStr = targetForm?.title || 'Worship Encounter 3';
       let successCount = 0;
       let lastError = '';
 
@@ -190,20 +295,32 @@ export const EmailCentre: React.FC = () => {
 
         const personalizedSubject = subject
           .replace(/{{name}}/g, resp.fullName || 'Delegate')
-          .replace(/{{event_title}}/g, resp.formTitle || targetForm?.title || 'Event')
-          .replace(/{{reference}}/g, resp.reference || '');
+          .replace(/{{event_title}}/g, resp.formTitle || formTitleStr)
+          .replace(/{{reference}}/g, resp.reference || '')
+          .replace(/{{event_date}}/g, formDateStr)
+          .replace(/{{event_location}}/g, formLocationStr);
 
         const personalizedBody = body
           .replace(/{{name}}/g, resp.fullName || 'Delegate')
-          .replace(/{{event_title}}/g, resp.formTitle || targetForm?.title || 'Event')
-          .replace(/{{reference}}/g, resp.reference || '');
+          .replace(/{{event_title}}/g, resp.formTitle || formTitleStr)
+          .replace(/{{reference}}/g, resp.reference || '')
+          .replace(/{{event_date}}/g, formDateStr)
+          .replace(/{{event_location}}/g, formLocationStr);
 
         const htmlContent = `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 16px; background-color: #ffffff;">
-            <h2 style="color: #4f46e5; margin-top: 0;">${personalizedSubject}</h2>
-            <p style="white-space: pre-line; color: #374151; font-size: 14px; line-height: 1.6;">${personalizedBody}</p>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #6b7280; margin: 0;">Reference Code: <strong>${resp.reference}</strong> | Powered by EventForm</p>
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;">
+            <div style="border-bottom: 2px solid #4f46e5; padding-bottom: 12px; margin-bottom: 18px;">
+              <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #4f46e5; background-color: #eef2ff; padding: 3px 8px; border-radius: 6px;">Event Notification</span>
+              <h2 style="color: #0f172a; margin: 10px 0 4px 0; font-size: 19px; line-height: 1.35;">${personalizedSubject}</h2>
+            </div>
+            <p style="white-space: pre-line; color: #334155; font-size: 14px; line-height: 1.65; margin: 0 0 20px 0;">${personalizedBody}</p>
+            <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
+              <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 3px;">Gate & Check-in Pass Code</div>
+              <div style="font-family: monospace; font-size: 18px; font-weight: 800; color: #4f46e5; letter-spacing: 1px;">${resp.reference}</div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 3px;">Present this code or your digital pass at the entrance desk for rapid check-in.</div>
+            </div>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0 12px 0;" />
+            <p style="font-size: 11px; color: #94a3b8; margin: 0; text-align: center;">Reference: <strong>${resp.reference}</strong> • Powered by EventForm Management System</p>
           </div>
         `;
 
@@ -403,13 +520,147 @@ export const EmailCentre: React.FC = () => {
       {/* VIEW: COMPOSE & LIVE PREVIEW */}
       {activeTab === 'compose' && (
         <div className="space-y-5">
+          {/* Worship Encounter & Countdown Reminder Desk Banner */}
+          <div className="bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-sm border border-indigo-800">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-indigo-800/70">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-300">
+                      Worship Encounter Countdown Reminders
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-indigo-950">
+                      Admin Quick Dispatch
+                    </span>
+                  </div>
+                  <h2 className="text-base font-black text-white tracking-tight">
+                    Pre-Configured Countdown Reminder Emails
+                  </h2>
+                </div>
+              </div>
+              <div className="text-xs text-indigo-200 font-medium">
+                Click any countdown preset to load tailored arrival copy, gate details, and pass references.
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-4">
+              {/* 2 Days to Go */}
+              <button
+                type="button"
+                onClick={() => handleSelectCountdownReminder('reminder_2days')}
+                className="text-left bg-white/5 hover:bg-white/10 active:bg-white/15 border border-white/10 hover:border-amber-400/50 rounded-2xl p-4 transition cursor-pointer group flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                      <Clock className="w-3 h-3" />
+                      48h to Go
+                    </span>
+                    <span className="text-xs text-indigo-300 group-hover:translate-x-0.5 transition font-bold">Load &rarr;</span>
+                  </div>
+                  <h4 className="text-sm font-bold text-white group-hover:text-amber-300 transition">
+                    ⏳ 2 Days to Go
+                  </h4>
+                  <p className="text-[11px] text-indigo-200/80 mt-1 leading-relaxed">
+                    Gate entry prep, pass readiness (reference code), arrival schedule & venue instructions.
+                  </p>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-white/10 text-[10px] text-amber-300 font-semibold flex items-center justify-between">
+                  <span>Pre-filled Subject & Checklist</span>
+                  <span className="underline font-bold">Apply Preset</span>
+                </div>
+              </button>
+
+              {/* 1 Day to Go */}
+              <button
+                type="button"
+                onClick={() => handleSelectCountdownReminder('reminder_1day')}
+                className="text-left bg-white/5 hover:bg-white/10 active:bg-white/15 border border-white/10 hover:border-orange-400/50 rounded-2xl p-4 transition cursor-pointer group flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-orange-400/20 text-orange-300 border border-orange-400/30">
+                      <Flame className="w-3 h-3" />
+                      Tomorrow / 24h
+                    </span>
+                    <span className="text-xs text-indigo-300 group-hover:translate-x-0.5 transition font-bold">Load &rarr;</span>
+                  </div>
+                  <h4 className="text-sm font-bold text-white group-hover:text-orange-300 transition">
+                    🔥 1 Day to Go
+                  </h4>
+                  <p className="text-[11px] text-indigo-200/80 mt-1 leading-relaxed">
+                    Doors-open alert, parking marshals, seating advice, and family check-in verification.
+                  </p>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-white/10 text-[10px] text-orange-300 font-semibold flex items-center justify-between">
+                  <span>Tomorrow Countdown</span>
+                  <span className="underline font-bold">Apply Preset</span>
+                </div>
+              </button>
+
+              {/* D-Day (Today!) */}
+              <button
+                type="button"
+                onClick={() => handleSelectCountdownReminder('reminder_dday')}
+                className="text-left bg-white/5 hover:bg-white/10 active:bg-white/15 border border-white/10 hover:border-emerald-400/50 rounded-2xl p-4 transition cursor-pointer group flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+                      <Sparkles className="w-3 h-3" />
+                      Happening Today
+                    </span>
+                    <span className="text-xs text-indigo-300 group-hover:translate-x-0.5 transition font-bold">Load &rarr;</span>
+                  </div>
+                  <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition">
+                    🎉 D-Day (Today!)
+                  </h4>
+                  <p className="text-[11px] text-indigo-200/80 mt-1 leading-relaxed">
+                    Live doors-open announcement, on-site welcome greeting, and check-in desk scanner pass.
+                  </p>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-white/10 text-[10px] text-emerald-300 font-semibold flex items-center justify-between">
+                  <span>Event Day Live Dispatch</span>
+                  <span className="underline font-bold">Apply Preset</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Top Bar with Template Controls & Preview Toggle */}
           <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                Pre-built System Templates
+                Select Pre-built Template
               </div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleTemplateSelect('reminder_2days')}
+                  className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-bold border border-amber-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>⏳ 2 Days to Go</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTemplateSelect('reminder_1day')}
+                  className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-800 rounded-xl text-xs font-bold border border-orange-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Flame className="w-3.5 h-3.5 text-orange-600" />
+                  <span>🔥 1 Day to Go</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTemplateSelect('reminder_dday')}
+                  className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>🎉 D-Day (Today)</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => handleTemplateSelect('confirmation')}
@@ -422,7 +673,7 @@ export const EmailCentre: React.FC = () => {
                   onClick={() => handleTemplateSelect('reminder')}
                   className="px-3 py-1.5 bg-gray-50 hover:bg-indigo-50 hover:text-indigo-600 text-gray-700 rounded-xl text-xs font-semibold border border-gray-200 transition cursor-pointer"
                 >
-                  Event Reminder
+                  General Reminder
                 </button>
                 <button
                   type="button"
@@ -527,14 +778,32 @@ export const EmailCentre: React.FC = () => {
 
               {/* Message Body */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-gray-700">
-                    Message Content
-                  </label>
-                  <div className="text-[10px] text-gray-400">
-                    Placeholders: <code className="text-indigo-600 font-mono">{'{{name}}'}</code>,{' '}
-                    <code className="text-indigo-600 font-mono">{'{{event_title}}'}</code>,{' '}
-                    <code className="text-indigo-600 font-mono">{'{{reference}}'}</code>
+                <div className="flex flex-col gap-1.5 mb-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-gray-700">
+                      Message Content
+                    </label>
+                    <span className="text-[10px] text-gray-400">Click placeholder to append:</span>
+                  </div>
+                  {/* Clickable Placeholders */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[
+                      { code: '{{name}}', label: 'Name' },
+                      { code: '{{event_title}}', label: 'Event' },
+                      { code: '{{reference}}', label: 'Pass Code' },
+                      { code: '{{event_date}}', label: 'Date/Time' },
+                      { code: '{{event_location}}', label: 'Venue' },
+                    ].map((item) => (
+                      <button
+                        key={item.code}
+                        type="button"
+                        onClick={() => setBody((prev) => `${prev} ${item.code}`)}
+                        className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-mono font-bold transition cursor-pointer"
+                        title={`Append ${item.code} to message`}
+                      >
+                        + {item.code}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 <textarea

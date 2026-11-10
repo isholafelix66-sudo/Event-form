@@ -36,6 +36,8 @@ function AppContent() {
     return sessionStorage.getItem('eventform_editing_form_id');
   });
   const [filterResponseFormId, setFilterResponseFormId] = useState<string | null>(null);
+  const [emailInitialFormId, setEmailInitialFormId] = useState<string | null>(null);
+  const [emailInitialTemplate, setEmailInitialTemplate] = useState<string | null>(null);
   const [formsList, setFormsList] = useState<{ id: string; slug: string; title: string }[]>([]);
   const [currentRole, setCurrentRole] = useState<UserRole>('super_admin');
   const [currentUserEmail] = useState<string>('isholafelix609@gmail.com');
@@ -139,7 +141,11 @@ function AppContent() {
       path === '/admin' ||
       hash === '#admin' ||
       hash.startsWith('#admin') ||
-      (rawPath === '/' && ['#overview', '#forms', '#responses', '#bulk', '#checkin', '#email', '#settings'].includes(hash));
+      (rawPath === '/' &&
+        (['#overview', '#forms', '#responses', '#bulk', '#checkin', '#email', '#settings'].includes(hash) ||
+          hash.startsWith('#email') ||
+          hash.startsWith('#forms') ||
+          hash.startsWith('#responses')));
 
     if (isAdminPathOrHash) {
       if (!isAdminSessionUnlocked()) {
@@ -147,9 +153,9 @@ function AppContent() {
       } else {
         setCurrentRole('super_admin');
         if (hash === '#settings') setCurrentTab('settings');
-        else if (hash === '#email') setCurrentTab('email');
-        else if (hash === '#responses') setCurrentTab('responses');
-        else if (hash === '#forms') setCurrentTab('forms');
+        else if (hash === '#email' || hash.startsWith('#email')) setCurrentTab('email');
+        else if (hash === '#responses' || hash.startsWith('#responses')) setCurrentTab('responses');
+        else if (hash === '#forms' || hash.startsWith('#forms')) setCurrentTab('forms');
         else if (hash === '#bulk') setCurrentTab('bulk');
         else if (hash === '#checkin') setCurrentTab('checkin');
         else setCurrentTab('overview');
@@ -209,6 +215,16 @@ function AppContent() {
   const handleViewResponsesForForm = (formId: string) => {
     setFilterResponseFormId(formId);
     setCurrentTab('responses');
+  };
+
+  const handleSendReminderForForm = (
+    formId: string,
+    template?: 'reminder_2days' | 'reminder_1day' | 'reminder_dday'
+  ) => {
+    setEmailInitialFormId(formId);
+    setEmailInitialTemplate(template || 'reminder_2days');
+    setCurrentTab('email');
+    window.location.hash = `email?form=${encodeURIComponent(formId)}&template=${template || 'reminder_2days'}`;
   };
 
   const handleSaveSiteSettings = (newSettings: SiteSettings) => {
@@ -404,6 +420,7 @@ function AppContent() {
                   onEditForm={handleEditForm}
                   onViewResponses={handleViewResponsesForForm}
                   onOpenPublicLink={handleOpenPublicLink}
+                  onSendReminder={handleSendReminderForForm}
                   currentRole={currentRole}
                 />
               )}
@@ -439,7 +456,12 @@ function AppContent() {
                 <CheckInScanner currentOfficerName="Admin Officer" />
               )}
 
-              {currentTab === 'email' && <EmailCentre />}
+              {currentTab === 'email' && (
+                <EmailCentre
+                  initialFormId={emailInitialFormId}
+                  initialTemplate={emailInitialTemplate}
+                />
+              )}
 
               {currentTab === 'settings' && (
                 <SettingsView
