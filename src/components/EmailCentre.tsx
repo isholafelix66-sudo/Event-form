@@ -135,16 +135,45 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
       }
 
       let successCount = 0;
+      let skippedDuplicateCount = 0;
+      let failedCount = 0;
       let lastError = '';
 
-      for (const resp of targetList.slice(0, 50)) {
+      const isDuplicateSent = (recipientEmail: string, subjectToCheck: string, formIdToCheck?: string): boolean => {
+        if (!recipientEmail || !subjectToCheck) return false;
+        const cleanEmail = recipientEmail.trim().toLowerCase();
+        const cleanSubject = subjectToCheck.trim().toLowerCase();
+
+        return emailLogs.some((log) => {
+          if (log.status !== 'sent') return false;
+          const sameEmail = log.recipientEmail ? log.recipientEmail.toLowerCase() === cleanEmail : false;
+          const sameSubject = log.subject ? log.subject.trim().toLowerCase() === cleanSubject : false;
+          const sameForm = !formIdToCheck || !log.formId || log.formId === formIdToCheck;
+          return (sameEmail || sameSubject) && sameForm;
+        });
+      };
+
+      for (let i = 0; i < targetList.length; i++) {
+        const resp = targetList[i];
         if (!resp.email) continue;
+
         const personalizedSubject = currentSubj
           .replace(/{{name}}/g, resp.fullName || 'Delegate')
           .replace(/{{event_title}}/g, resp.formTitle || formTitleStr)
           .replace(/{{reference}}/g, resp.reference || '')
           .replace(/{{event_date}}/g, formDateStr)
           .replace(/{{event_location}}/g, formLocationStr);
+
+        // DUPLICATE SAFEGUARD: Skip sending if identical email content was already delivered to this recipient
+        if (isDuplicateSent(resp.email, personalizedSubject, targetForm.id)) {
+          skippedDuplicateCount++;
+          continue;
+        }
+
+        // Anti-spam queue delay (200ms stagger between recipient emails)
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
 
         const personalizedBody = currentBody
           .replace(/{{name}}/g, resp.fullName || 'Delegate')
@@ -156,7 +185,7 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
         const htmlContent = `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;">
             <div style="border-bottom: 2px solid #4f46e5; padding-bottom: 12px; margin-bottom: 18px;">
-              <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #4f46e5; background-color: #eef2ff; padding: 3px 8px; border-radius: 6px;">Automated Reminder • ${stageLabel}</span>
+              <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #4f46e5; background-color: #eef2ff; padding: 3px 8px; border-radius: 6px;">Event Update • ${stageLabel}</span>
               <h2 style="color: #0f172a; margin: 10px 0 4px 0; font-size: 19px; line-height: 1.35;">${personalizedSubject}</h2>
             </div>
             <p style="white-space: pre-line; color: #334155; font-size: 14px; line-height: 1.65; margin: 0 0 20px 0;">${personalizedBody}</p>
@@ -166,51 +195,71 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
               <div style="font-size: 11px; color: #64748b; margin-top: 3px;">Present this code or your digital pass at the entrance desk for rapid check-in.</div>
             </div>
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0 12px 0;" />
-            <p style="font-size: 11px; color: #94a3b8; margin: 0; text-align: center;">Reference: <strong>${resp.reference}</strong> • Powered by EventForm Automated Time-Counter Engine</p>
+            <p style="font-size: 11px; color: #94a3b8; margin: 0; text-align: center;">Reference: <strong>${resp.reference}</strong> • Official Event Organizing Committee</p>
           </div>
         `;
 
-        const res = await fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            host: smtpSettings.host,
-            port: smtpSettings.port,
-            user: smtpSettings.user,
-            pass: smtpSettings.pass,
-            fromEmail: smtpSettings.fromEmail,
-            fromName: smtpSettings.fromName,
-            to: resp.email,
-            subject: personalizedSubject,
-            html: htmlContent,
-          }),
-        });
+        try {
+          const res = await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              host: smtpSettings.host,
+              port: smtpSettings.port,
+              user: smtpSettings.user,
+              pass: smtpSettings.pass,
+              fromEmail: smtpSettings.fromEmail,
+              fromName: smtpSettings.fromName,
+              to: resp.email,
+              subject: personalizedSubject,
+              html: htmlContent,
+            }),
+          });
 
-        const data = await res.json();
-        if (res.ok && data.success) {
-          successCount++;
-        } else {
-          lastError = data.error || 'Delivery failed';
+          const data = await res.json();
+          if (res.ok && data.success) {
+            successCount++;
+            const singleSentLog = await dbService.addEmailLog({
+              subject: personalizedSubject,
+              recipientsCount: 1,
+              successCount: 1,
+              formId: targetForm.id,
+              formTitle: targetForm.title,
+              status: 'sent',
+              recipientType: 'single',
+              recipientEmail: resp.email,
+              sender: smtpSettings.fromEmail || smtpSettings.user || 'bsfijerubc@gmail.com',
+            });
+            setEmailLogs((prev) => [singleSentLog, ...prev]);
+          } else {
+            failedCount++;
+            lastError = data.error || 'Delivery failed';
+            const singleFailedLog = await dbService.addEmailLog({
+              subject: personalizedSubject,
+              recipientsCount: 1,
+              failedCount: 1,
+              formId: targetForm.id,
+              formTitle: targetForm.title,
+              status: 'failed',
+              recipientType: 'single',
+              recipientEmail: resp.email,
+              errorMessage: data.error || 'SMTP delivery error',
+              sender: smtpSettings.fromEmail || smtpSettings.user || 'bsfijerubc@gmail.com',
+            });
+            setEmailLogs((prev) => [singleFailedLog, ...prev]);
+          }
+        } catch (err: any) {
+          failedCount++;
+          lastError = err?.message || 'Network error';
         }
       }
 
-      if (successCount > 0) {
-        const newLog = await dbService.addEmailLog({
-          subject: currentSubj,
-          recipientsCount: successCount,
-          formId: targetForm.id,
-          formTitle: targetForm.title,
-          status: 'sent',
-          recipientType: 'form_specific',
-          sender: smtpSettings.fromEmail || smtpSettings.user || 'bsfijerubc@gmail.com',
-        });
-
-        setEmailLogs((prev) => [newLog, ...prev]);
-        const msg = `⚡ Automated Dispatch Complete: Time counter predicted stage "${stageLabel}" and successfully emailed ${successCount} registrant(s) for "${targetForm.title}"!`;
+      if (successCount > 0 || skippedDuplicateCount > 0) {
+        const msg = `⚡ Dispatch Complete: ${successCount} email(s) sent successfully${skippedDuplicateCount > 0 ? `, ${skippedDuplicateCount} duplicate email(s) skipped (already delivered)` : ''}${failedCount > 0 ? `, ${failedCount} failed` : ''}.`;
         setStatusMessage({ type: 'success', text: msg });
         showToast(msg, 'success');
       } else {
-        throw new Error(lastError || 'Failed to deliver automated emails.');
+        throw new Error(lastError || 'Failed to deliver emails.');
       }
     } catch (err: any) {
       const errorMsg = err?.message || 'Failed to deliver automated email batch.';
@@ -441,9 +490,26 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
       const formLocationStr = targetForm?.eventLocation || 'Grace Cathedral Auditorium, London';
       const formTitleStr = targetForm?.title || 'Worship Encounter 3';
       let successCount = 0;
+      let skippedDuplicateCount = 0;
+      let failedCount = 0;
       let lastError = '';
 
-      for (const resp of targetList.slice(0, 50)) {
+      const isDuplicateSent = (recipientEmail: string, subjectToCheck: string, formIdToCheck?: string): boolean => {
+        if (!recipientEmail || !subjectToCheck) return false;
+        const cleanEmail = recipientEmail.trim().toLowerCase();
+        const cleanSubject = subjectToCheck.trim().toLowerCase();
+
+        return emailLogs.some((log) => {
+          if (log.status !== 'sent') return false;
+          const sameEmail = log.recipientEmail ? log.recipientEmail.toLowerCase() === cleanEmail : false;
+          const sameSubject = log.subject ? log.subject.trim().toLowerCase() === cleanSubject : false;
+          const sameForm = !formIdToCheck || !log.formId || log.formId === formIdToCheck;
+          return (sameEmail || sameSubject) && sameForm;
+        });
+      };
+
+      for (let i = 0; i < targetList.length; i++) {
+        const resp = targetList[i];
         if (!resp.email) continue;
 
         const personalizedSubject = subject
@@ -452,6 +518,17 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
           .replace(/{{reference}}/g, resp.reference || '')
           .replace(/{{event_date}}/g, formDateStr)
           .replace(/{{event_location}}/g, formLocationStr);
+
+        // DUPLICATE SAFEGUARD: Skip if identical email was already delivered to this recipient
+        if (isDuplicateSent(resp.email, personalizedSubject, selectedFormId)) {
+          skippedDuplicateCount++;
+          continue;
+        }
+
+        // Anti-spam queue delay (200ms stagger)
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
 
         const personalizedBody = body
           .replace(/{{name}}/g, resp.fullName || 'Delegate')
@@ -463,7 +540,7 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
         const htmlContent = `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;">
             <div style="border-bottom: 2px solid #4f46e5; padding-bottom: 12px; margin-bottom: 18px;">
-              <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #4f46e5; background-color: #eef2ff; padding: 3px 8px; border-radius: 6px;">Event Notification</span>
+              <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #4f46e5; background-color: #eef2ff; padding: 3px 8px; border-radius: 6px;">Event Announcement</span>
               <h2 style="color: #0f172a; margin: 10px 0 4px 0; font-size: 19px; line-height: 1.35;">${personalizedSubject}</h2>
             </div>
             <p style="white-space: pre-line; color: #334155; font-size: 14px; line-height: 1.65; margin: 0 0 20px 0;">${personalizedBody}</p>
@@ -473,38 +550,71 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
               <div style="font-size: 11px; color: #64748b; margin-top: 3px;">Present this code or your digital pass at the entrance desk for rapid check-in.</div>
             </div>
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0 12px 0;" />
-            <p style="font-size: 11px; color: #94a3b8; margin: 0; text-align: center;">Reference: <strong>${resp.reference}</strong> • Powered by EventForm Management System</p>
+            <p style="font-size: 11px; color: #94a3b8; margin: 0; text-align: center;">Reference: <strong>${resp.reference}</strong> • Official Event Management Desk</p>
           </div>
         `;
 
-        const res = await fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            host: smtpSettings.host,
-            port: smtpSettings.port,
-            user: smtpSettings.user,
-            pass: smtpSettings.pass,
-            fromEmail: smtpSettings.fromEmail,
-            fromName: smtpSettings.fromName,
-            to: resp.email,
-            subject: personalizedSubject,
-            html: htmlContent,
-          }),
-        });
+        try {
+          const res = await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              host: smtpSettings.host,
+              port: smtpSettings.port,
+              user: smtpSettings.user,
+              pass: smtpSettings.pass,
+              fromEmail: smtpSettings.fromEmail,
+              fromName: smtpSettings.fromName,
+              to: resp.email,
+              subject: personalizedSubject,
+              html: htmlContent,
+            }),
+          });
 
-        const data = await res.json();
-        if (res.ok && data.success) {
-          successCount++;
-        } else {
-          lastError = data.error || 'Failed to deliver message';
+          const data = await res.json();
+          if (res.ok && data.success) {
+            successCount++;
+            const singleSentLog = await dbService.addEmailLog({
+              subject: personalizedSubject,
+              recipientsCount: 1,
+              successCount: 1,
+              formId: selectedFormId,
+              formTitle: targetForm?.title || 'All Events',
+              status: 'sent',
+              recipientType: 'single',
+              recipientEmail: resp.email,
+              sender: smtpSettings.fromEmail || smtpSettings.user || 'bsfijerubc@gmail.com',
+            });
+            setEmailLogs((prev) => [singleSentLog, ...prev]);
+          } else {
+            failedCount++;
+            lastError = data.error || 'Delivery failed';
+            const singleFailedLog = await dbService.addEmailLog({
+              subject: personalizedSubject,
+              recipientsCount: 1,
+              failedCount: 1,
+              formId: selectedFormId,
+              formTitle: targetForm?.title || 'All Events',
+              status: 'failed',
+              recipientType: 'single',
+              recipientEmail: resp.email,
+              errorMessage: data.error || 'Delivery rejected',
+              sender: smtpSettings.fromEmail || smtpSettings.user || 'bsfijerubc@gmail.com',
+            });
+            setEmailLogs((prev) => [singleFailedLog, ...prev]);
+          }
+        } catch (err: any) {
+          failedCount++;
+          lastError = err?.message || 'Network error';
         }
       }
 
-      if (successCount > 0) {
+      if (successCount > 0 || skippedDuplicateCount > 0) {
         const newLog = await dbService.addEmailLog({
           subject,
-          recipientsCount: successCount,
+          recipientsCount: successCount + skippedDuplicateCount,
+          successCount,
+          failedCount,
           formId: selectedFormId,
           formTitle: targetForm?.title || 'All Events',
           status: 'sent',
@@ -513,7 +623,7 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
         });
 
         setEmailLogs((prev) => [newLog, ...prev]);
-        const successText = `Dispatched email announcement to ${successCount} registrant(s) successfully!`;
+        const successText = `Dispatched announcement: ${successCount} sent${skippedDuplicateCount > 0 ? `, ${skippedDuplicateCount} duplicate(s) skipped` : ''}${failedCount > 0 ? `, ${failedCount} failed` : ''}!`;
         setStatusMessage({ type: 'success', text: successText });
         showToast(successText, 'success');
       } else {

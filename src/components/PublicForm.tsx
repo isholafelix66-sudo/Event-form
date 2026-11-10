@@ -38,8 +38,12 @@ export const PublicForm: React.FC<PublicFormProps> = ({
   parentCode = null,
 }) => {
   const { showToast } = useToast();
-  const [form, setForm] = useState<EventForm | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState<EventForm | null>(() => {
+    return dbService.getCachedForm(slugOrId);
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    return !dbService.getCachedForm(slugOrId);
+  });
   const [submitting, setSubmitting] = useState(false);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -63,14 +67,16 @@ export const PublicForm: React.FC<PublicFormProps> = ({
   useEffect(() => {
     let isMounted = true;
     async function loadForm() {
-      setLoading(true);
+      if (!dbService.getCachedForm(slugOrId)) {
+        setLoading(true);
+      }
       const fetched = await dbService.getFormBySlug(slugOrId);
       if (isMounted) {
-        setForm(fetched);
-        setLoading(false);
         if (fetched) {
+          setForm(fetched);
           document.title = `${fetched.title} – Official Event Registration`;
         }
+        setLoading(false);
       }
     }
     loadForm();
@@ -320,14 +326,31 @@ export const PublicForm: React.FC<PublicFormProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Loading state
+  // Ultra-fast shimmer skeleton loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 text-center max-w-sm w-full">
-          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-800 font-bold text-sm">Loading registration form...</p>
-          <p className="text-gray-400 text-xs mt-1">Please wait a moment...</p>
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-100/70 to-slate-50 py-6 px-4 font-sans animate-pulse">
+        <div className="max-w-2xl mx-auto space-y-4">
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="h-44 bg-gradient-to-r from-slate-200 via-indigo-100/60 to-slate-200 w-full" />
+            <div className="p-6 sm:p-8 space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-32 h-5 bg-indigo-100 rounded-full" />
+                <div className="w-20 h-5 bg-slate-100 rounded-full ml-auto" />
+              </div>
+              <div className="w-3/4 h-8 bg-slate-200 rounded-xl" />
+              <div className="space-y-2 pt-2">
+                <div className="w-full h-4 bg-slate-100 rounded-lg" />
+                <div className="w-2/3 h-4 bg-slate-100 rounded-lg" />
+              </div>
+            </div>
+          </div>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-3xl p-6 border border-gray-200 space-y-3">
+              <div className="w-1/2 h-5 bg-slate-200 rounded-lg" />
+              <div className="w-full h-11 bg-slate-100 rounded-2xl" />
+            </div>
+          ))}
         </div>
       </div>
     );
