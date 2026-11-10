@@ -69,16 +69,21 @@ export const CheckInScanner: React.FC<CheckInScannerProps> = ({
 
   // Manual or QR lookup
   const handleVerifyQuery = (query: string) => {
-    const clean = query.trim().toUpperCase();
+    const clean = query.trim().toLowerCase();
     if (!clean) return;
 
-    // Check by reference first, then email, then name
-    const found = responses.find(
-      (r) =>
-        r.reference.toUpperCase() === clean ||
-        r.email.toUpperCase() === clean ||
-        r.fullName.toUpperCase().includes(clean)
-    );
+    // Search across reference code, email, full name, or phone number
+    const matches = responses.filter((r) => {
+      const formMatches = selectedFormId === 'all' || r.formId === selectedFormId;
+      if (!formMatches) return false;
+      const refMatch = r.reference.toLowerCase().includes(clean);
+      const emailMatch = r.email.toLowerCase().includes(clean);
+      const nameMatch = r.fullName.toLowerCase().includes(clean);
+      const phoneMatch = r.phone ? r.phone.toLowerCase().includes(clean) : false;
+      return refMatch || emailMatch || nameMatch || phoneMatch;
+    });
+
+    const found = matches[0];
 
     if (found) {
       setActiveCandidate(found);
@@ -89,18 +94,18 @@ export const CheckInScanner: React.FC<CheckInScannerProps> = ({
           timestamp: found.checkedInAt,
           officer: found.checkedInBy,
         });
-        showToast('Warning: Attendee has already been checked in!', 'error');
+        showToast(`Warning: ${found.fullName} is already checked in!`, 'error');
       } else {
         setCheckInNotice(null);
-        showToast(`Found record for ${found.fullName}`, 'info');
+        showToast(`Found registration record for ${found.fullName}`, 'info');
       }
     } else {
       setActiveCandidate(null);
       setCheckInNotice({
         type: 'not_found',
-        message: `No registration found matching "${query}". Please check the spelling or reference ID.`,
+        message: `No registration found matching "${query}". Search supports Full Name, Email, Reference Code (e.g. EVT-2026-XXXX), or Phone Number.`,
       });
-      showToast(`No record matching "${query}"`, 'error');
+      showToast(`No attendee record matching "${query}"`, 'error');
     }
   };
 
@@ -294,11 +299,14 @@ export const CheckInScanner: React.FC<CheckInScannerProps> = ({
 
           {/* Quick Simulation Bar for easy testing */}
           <div>
-            <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-              Quick Test: Click Attendee to Simulate QR Scan
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                All Event Registrants ({activeEventResponses.length})
+              </div>
+              <span className="text-[10px] text-indigo-600 font-semibold">Click to select for verification</span>
             </div>
-            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
-              {activeEventResponses.slice(0, 8).map((r) => (
+            <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
+              {activeEventResponses.map((r) => (
                 <button
                   key={r.id}
                   onClick={() => {
@@ -306,14 +314,18 @@ export const CheckInScanner: React.FC<CheckInScannerProps> = ({
                     handleVerifyQuery(r.reference);
                   }}
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border text-left transition cursor-pointer flex items-center gap-1.5 ${
-                    r.checkedIn
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    activeCandidate?.id === r.id
+                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                      : r.checkedIn
+                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
                       : 'bg-gray-50 hover:bg-indigo-50 text-gray-700 border-gray-200'
                   }`}
                 >
                   <span className="font-mono text-[10px] font-bold">{r.reference}</span>
-                  <span className="truncate max-w-[90px]">{r.fullName.split(' ')[0]}</span>
-                  {r.checkedIn && <Check className="w-3 h-3 text-emerald-600 shrink-0" />}
+                  <span className="truncate max-w-[110px]">{r.fullName}</span>
+                  {r.checkedIn && (
+                    <Check className={`w-3 h-3 shrink-0 ${activeCandidate?.id === r.id ? 'text-white' : 'text-emerald-600'}`} />
+                  )}
                 </button>
               ))}
             </div>
@@ -498,7 +510,7 @@ export const CheckInScanner: React.FC<CheckInScannerProps> = ({
               </div>
             ) : (
               <div className="py-12 text-center text-gray-400 text-xs">
-                Scan a QR code or search by reference code to display attendee verification.
+                Scan a QR code or search by full name, email address, or reference code to verify an attendee.
               </div>
             )}
           </div>
@@ -523,6 +535,131 @@ export const CheckInScanner: React.FC<CheckInScannerProps> = ({
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Full Live Searchable Attendance Directory */}
+      <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+          <div>
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <Users className="w-4 h-4 text-indigo-600" />
+              Complete Event Attendees Directory ({activeEventResponses.length})
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Instant check-in desk list. Search by Name, Email, Phone, or Pass Reference Code.
+            </p>
+          </div>
+
+          {/* Directory Search Box */}
+          <div className="relative min-w-[240px]">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search Name, Email, Code..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (e.target.value.trim().length > 1) {
+                  handleVerifyQuery(e.target.value);
+                }
+              }}
+              className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+            />
+          </div>
+        </div>
+
+        {/* Directory List Table */}
+        <div className="overflow-x-auto rounded-2xl border border-gray-100">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-gray-50 text-gray-500 font-bold uppercase tracking-wider text-[10px] border-b border-gray-100">
+              <tr>
+                <th className="px-4 py-3">Pass Reference</th>
+                <th className="px-4 py-3">Attendee Name</th>
+                <th className="px-4 py-3">Email / Contact</th>
+                <th className="px-4 py-3">Event Title</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Quick Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+              {activeEventResponses.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                    No attendee records found.
+                  </td>
+                </tr>
+              ) : (
+                activeEventResponses.map((r) => (
+                  <tr
+                    key={r.id}
+                    className={`hover:bg-indigo-50/50 transition ${
+                      activeCandidate?.id === r.id ? 'bg-indigo-50/80 font-semibold' : ''
+                    }`}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                        {r.reference}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-bold text-gray-900">
+                      <div>{r.fullName}</div>
+                      {r.parent_registration_id && (
+                        <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-bold">
+                          Child Account ({r.parent_registration_id})
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      <div>{r.email}</div>
+                      {r.phone && <div className="text-[10px] text-gray-400">{r.phone}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 truncate max-w-[150px]">
+                      {r.formTitle}
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.checkedIn ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          Checked In
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                          <Clock className="w-3 h-3 text-amber-600" />
+                          Pending Arrival
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setActiveCandidate(r);
+                          if (!r.checkedIn) {
+                            const updated = await dbService.checkInAttendee(r.id, currentOfficerName);
+                            if (updated) {
+                              setActiveCandidate(updated);
+                              showToast(`Checked in: ${updated.fullName}`, 'success');
+                              confetti({ particleCount: 40, spread: 40 });
+                            }
+                          } else {
+                            showToast(`${r.fullName} is already checked in.`, 'info');
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                          r.checkedIn
+                            ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
+                        }`}
+                      >
+                        {r.checkedIn ? 'View Record' : 'Check In Now'}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

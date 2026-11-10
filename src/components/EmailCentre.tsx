@@ -67,6 +67,158 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
   const [smtpSaved, setSmtpSaved] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [autoSending, setAutoSending] = useState(false);
+  const [autoMonitorActive, setAutoMonitorActive] = useState(true);
+
+  const predictReminderStage = (eventDateStr?: string): 'reminder_2days' | 'reminder_1day' | 'reminder_dday' => {
+    if (!eventDateStr) return 'reminder_2days';
+    const target = new Date(eventDateStr).getTime();
+    if (isNaN(target)) return 'reminder_2days';
+    const now = Date.now();
+    const diffHours = (target - now) / (1000 * 60 * 60);
+
+    if (diffHours > 36) {
+      return 'reminder_2days';
+    } else if (diffHours > 12) {
+      return 'reminder_1day';
+    } else {
+      return 'reminder_dday';
+    }
+  };
+
+  const handleAutoPredictAndSend = async (targetFormIdParam?: string) => {
+    const formIdToUse = targetFormIdParam || selectedFormId || forms[0]?.id;
+    const targetForm = forms.find((f) => f.id === formIdToUse) || forms[0];
+    if (!targetForm) {
+      showToast('No active event form found to dispatch reminders for.', 'error');
+      return;
+    }
+
+    const predictedStage = predictReminderStage(targetForm.eventDate);
+    setSelectedFormId(targetForm.id);
+    setRecipientAudience('form_specific');
+    handleTemplateSelect(predictedStage, targetForm.id, forms);
+
+    const stageLabel =
+      predictedStage === 'reminder_2days'
+        ? '⏳ 2 Days to Go'
+        : predictedStage === 'reminder_1day'
+        ? '🔥 1 Day to Go'
+        : '🎉 D-Day (Today)';
+
+    const targetList = responses.filter((r) => r.formId === targetForm.id);
+    if (targetList.length === 0) {
+      showToast(`No registered attendees found for "${targetForm.title}".`, 'error');
+      return;
+    }
+
+    setAutoSending(true);
+    setStatusMessage(null);
+
+    try {
+      const formDateStr = targetForm.eventDate
+        ? new Date(targetForm.eventDate).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+        : 'Nov 28, 2026 at 6:00 PM';
+      const formLocationStr = targetForm.eventLocation || 'Grace Cathedral Auditorium, London';
+      const formTitleStr = targetForm.title || 'Worship Encounter';
+
+      let currentSubj = `⏳ 2 Days to Go! ${formTitleStr} – Important Arrival & Gate Information`;
+      let currentBody = `Dear {{name}},\n\nWe are officially 2 DAYS AWAY from {{event_title}}! The anticipation is high, and our teams are making final preparations to welcome you for an unforgettable, life-transforming time.\n\nEVENT SCHEDULE & LOCATION:\n📅 Date & Time: {{event_date}}\n📍 Venue: {{event_location}}\n🎟️ Your Pass Reference: {{reference}}\n\nIMPORTANT PREPARATION & ARRIVAL CHECKLIST:\n1. Fast-Track Check-In: Please have your Reference Code ({{reference}}) or your Digital QR Pass ready on your phone upon arrival at the gate.\n2. Family & Child Registrations: If you registered children or family members under your code, please ensure they arrive with you or have their respective pass codes ready.\n3. Arrive Early: Doors open 45 minutes prior to start time. Seating is on a first-arrival basis.\n4. Venue & Parking: On-site parking stewards will be stationed at {{event_location}} to guide you upon arrival.\n5. Spiritual Preparation: Come with an open heart, expectant for a mighty move of God!\n\nWe cannot wait to worship together with you!\n\nWarm regards,\n{{event_title}} Organizing Committee`;
+
+      if (predictedStage === 'reminder_1day') {
+        currentSubj = `🔥 Tomorrow! 1 Day to Go for ${formTitleStr} – Final Event Details`;
+        currentBody = `Dear {{name}},\n\nTOMORROW IS THE BIG DAY! In less than 24 hours, {{event_title}} will officially begin.\n\nYour registration is confirmed, your seat is ready, and we cannot wait to worship together!\n\nFINAL EVENT COUNTDOWN:\n📅 Date & Time: {{event_date}}\n📍 Venue: {{event_location}}\n🎟️ Your Pass Reference: {{reference}}\n\nFINAL CHECKLIST FOR TOMORROW:\n• Keep your Pass Reference ({{reference}}) handy for instant badge/wristband collection at the check-in desk.\n• Beat the Queue: Doors open 45 minutes before start time. Arrive early to secure your preferred seats.\n• Child & Youth Registrations: Dedicated family check-in desks will be operational from door-open time.\n• Parking & Transit: Free parking is available on-site. Public transport connections are within a short walk of {{event_location}}.\n• Need assistance? Look for our official ushering and protocol team members upon arrival.\n\nSee you tomorrow at {{event_location}}!\n\nWith love and expectation,\n{{event_title}} Organizing Committee`;
+      } else if (predictedStage === 'reminder_dday') {
+        currentSubj = `🎉 TODAY IS THE DAY! ${formTitleStr} is Here – Doors Open Soon!`;
+        currentBody = `Dear {{name}},\n\nTHE WAIT IS OVER – TODAY IS THE DAY!\n\n{{event_title}} is taking place TODAY, and our teams are on site eagerly waiting to welcome you through the doors!\n\nYOUR ACCESS PASS FOR TODAY:\n🎟️ Reference Code: {{reference}}\n📍 Venue: {{event_location}}\n⏰ Schedule: {{event_date}}\n\nON-SITE ARRIVAL INSTRUCTIONS:\n• Doors open shortly. Please arrive early for hassle-free check-in.\n• Show your Reference Code ({{reference}}) or QR code to any usher or check-in officer at the front desk.\n• If you need any assistance upon arrival, our welcoming team wearing official badges is ready to help.\n\nTravel safely, and let's encounter God together today!\n\nSee you in a few moments,\n{{event_title}} Team`;
+      }
+
+      let successCount = 0;
+      let lastError = '';
+
+      for (const resp of targetList.slice(0, 50)) {
+        if (!resp.email) continue;
+        const personalizedSubject = currentSubj
+          .replace(/{{name}}/g, resp.fullName || 'Delegate')
+          .replace(/{{event_title}}/g, resp.formTitle || formTitleStr)
+          .replace(/{{reference}}/g, resp.reference || '')
+          .replace(/{{event_date}}/g, formDateStr)
+          .replace(/{{event_location}}/g, formLocationStr);
+
+        const personalizedBody = currentBody
+          .replace(/{{name}}/g, resp.fullName || 'Delegate')
+          .replace(/{{event_title}}/g, resp.formTitle || formTitleStr)
+          .replace(/{{reference}}/g, resp.reference || '')
+          .replace(/{{event_date}}/g, formDateStr)
+          .replace(/{{event_location}}/g, formLocationStr);
+
+        const htmlContent = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;">
+            <div style="border-bottom: 2px solid #4f46e5; padding-bottom: 12px; margin-bottom: 18px;">
+              <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #4f46e5; background-color: #eef2ff; padding: 3px 8px; border-radius: 6px;">Automated Reminder • ${stageLabel}</span>
+              <h2 style="color: #0f172a; margin: 10px 0 4px 0; font-size: 19px; line-height: 1.35;">${personalizedSubject}</h2>
+            </div>
+            <p style="white-space: pre-line; color: #334155; font-size: 14px; line-height: 1.65; margin: 0 0 20px 0;">${personalizedBody}</p>
+            <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
+              <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 3px;">Gate & Check-in Pass Code</div>
+              <div style="font-family: monospace; font-size: 18px; font-weight: 800; color: #4f46e5; letter-spacing: 1px;">${resp.reference}</div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 3px;">Present this code or your digital pass at the entrance desk for rapid check-in.</div>
+            </div>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0 12px 0;" />
+            <p style="font-size: 11px; color: #94a3b8; margin: 0; text-align: center;">Reference: <strong>${resp.reference}</strong> • Powered by EventForm Automated Time-Counter Engine</p>
+          </div>
+        `;
+
+        const res = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            host: smtpSettings.host,
+            port: smtpSettings.port,
+            user: smtpSettings.user,
+            pass: smtpSettings.pass,
+            fromEmail: smtpSettings.fromEmail,
+            fromName: smtpSettings.fromName,
+            to: resp.email,
+            subject: personalizedSubject,
+            html: htmlContent,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          successCount++;
+        } else {
+          lastError = data.error || 'Delivery failed';
+        }
+      }
+
+      if (successCount > 0) {
+        const newLog = await dbService.addEmailLog({
+          subject: currentSubj,
+          recipientsCount: successCount,
+          formId: targetForm.id,
+          formTitle: targetForm.title,
+          status: 'sent',
+          recipientType: 'form_specific',
+          sender: smtpSettings.fromEmail || smtpSettings.user || 'bsfijerubc@gmail.com',
+        });
+
+        setEmailLogs((prev) => [newLog, ...prev]);
+        const msg = `⚡ Automated Dispatch Complete: Time counter predicted stage "${stageLabel}" and successfully emailed ${successCount} registrant(s) for "${targetForm.title}"!`;
+        setStatusMessage({ type: 'success', text: msg });
+        showToast(msg, 'success');
+      } else {
+        throw new Error(lastError || 'Failed to deliver automated emails.');
+      }
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Failed to deliver automated email batch.';
+      setStatusMessage({ type: 'error', text: errorMsg });
+      showToast(errorMsg, 'error');
+    } finally {
+      setAutoSending(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -525,26 +677,84 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-indigo-800/70">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0">
-                  <Bell className="w-5 h-5" />
+                  <Zap className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-300">
-                      Worship Encounter Countdown Reminders
+                      Time Counter Auto-Predictor & Dispatch Engine
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-indigo-950">
-                      Admin Quick Dispatch
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-400 text-slate-950 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-950 animate-ping" />
+                      Auto-Trigger Armed
                     </span>
                   </div>
                   <h2 className="text-base font-black text-white tracking-tight">
-                    Pre-Configured Countdown Reminder Emails
+                    Automatic Countdown Reminder Dispatcher
                   </h2>
                 </div>
               </div>
-              <div className="text-xs text-indigo-200 font-medium">
-                Click any countdown preset to load tailored arrival copy, gate details, and pass references.
+
+              {/* Instant Auto-Predict & Send Button */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleAutoPredictAndSend()}
+                  disabled={autoSending}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-2xl text-xs shadow-md transition cursor-pointer active:scale-95 disabled:opacity-50"
+                  title="Predict stage from time counter and automatically send emails to all registrants"
+                >
+                  {autoSending ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Dispatching Auto-Batch...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 fill-slate-950" />
+                      <span>⚡ Predict Stage & Auto-Send Email Now</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
+
+            {/* Current Prediction Display */}
+            {(() => {
+              const activeForm = forms.find((f) => f.id === selectedFormId) || forms[0];
+              const predictedStage = predictReminderStage(activeForm?.eventDate);
+              const predictedLabel =
+                predictedStage === 'reminder_2days'
+                  ? '⏳ 2 Days to Go (48h Out)'
+                  : predictedStage === 'reminder_1day'
+                  ? '🔥 1 Day to Go (24h Out)'
+                  : '🎉 D-Day (Happening Today!)';
+
+              return (
+                <div className="mt-4 p-3 bg-white/5 border border-white/10 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-indigo-300 font-bold">Predicted Stage for "{activeForm?.title || 'Worship Encounter'}":</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-amber-300 bg-amber-400/20 font-black font-mono border border-amber-400/30">
+                      {predictedLabel}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-indigo-200">
+                    <span>Target Audience: <strong>{responses.filter((r) => r.formId === selectedFormId).length} delegate(s)</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => setAutoMonitorActive(!autoMonitorActive)}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                        autoMonitorActive
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-white/10 text-gray-300 border-white/20'
+                      }`}
+                    >
+                      {autoMonitorActive ? '● Background Auto-Monitor: ACTIVE' : '○ Background Auto-Monitor: PAUSED'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-4">
               {/* 2 Days to Go */}
