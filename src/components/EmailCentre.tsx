@@ -674,13 +674,13 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
         <div className="space-y-5">
           {/* Worship Encounter & Countdown Reminder Desk Banner */}
           <div className="bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-sm border border-indigo-800">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-indigo-800/70">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-indigo-800/70">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0 mt-0.5 sm:mt-0">
                   <Zap className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-300">
                       Time Counter Auto-Predictor & Dispatch Engine
                     </span>
@@ -696,12 +696,12 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
               </div>
 
               {/* Instant Auto-Predict & Send Button */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 w-full lg:w-auto shrink-0">
                 <button
                   type="button"
                   onClick={() => handleAutoPredictAndSend()}
                   disabled={autoSending}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-2xl text-xs shadow-md transition cursor-pointer active:scale-95 disabled:opacity-50"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-2xl text-xs shadow-md transition cursor-pointer active:scale-95 disabled:opacity-50"
                   title="Predict stage from time counter and automatically send emails to all registrants"
                 >
                   {autoSending ? (
@@ -719,7 +719,7 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
               </div>
             </div>
 
-            {/* Current Prediction Display */}
+            {/* Current Prediction Display & Automatic Dispatch Status */}
             {(() => {
               const activeForm = forms.find((f) => f.id === selectedFormId) || forms[0];
               const predictedStage = predictReminderStage(activeForm?.eventDate);
@@ -731,15 +731,19 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
                   : '🎉 D-Day (Happening Today!)';
 
               return (
-                <div className="mt-4 p-3 bg-white/5 border border-white/10 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2">
+                <div className="mt-4 p-3.5 bg-white/5 border border-white/10 rounded-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-indigo-300 font-bold">Predicted Stage for "{activeForm?.title || 'Worship Encounter'}":</span>
                     <span className="px-2.5 py-0.5 rounded-full text-amber-300 bg-amber-400/20 font-black font-mono border border-amber-400/30">
                       {predictedLabel}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] text-indigo-200">
+                  <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-indigo-200">
                     <span>Target Audience: <strong>{responses.filter((r) => r.formId === selectedFormId).length} delegate(s)</strong></span>
+                    <span className="text-amber-300/90 font-medium hidden sm:inline">•</span>
+                    <span className="text-emerald-300 font-semibold bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                      ⚡ Fully Automatic: No manual button click needed
+                    </span>
                     <button
                       type="button"
                       onClick={() => setAutoMonitorActive(!autoMonitorActive)}

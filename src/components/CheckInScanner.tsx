@@ -297,15 +297,16 @@ export const CheckInScanner: React.FC<CheckInScannerProps> = ({
             </div>
           </form>
 
-          {/* Quick Simulation Bar for easy testing */}
+          {/* Quick Horizontal Scroll & Selection Bar for all registrants */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                All Event Registrants ({activeEventResponses.length})
+              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>All Event Registrants ({activeEventResponses.length})</span>
+                <span className="text-[10px] text-gray-400 font-normal">(Scroll horizontally &rarr;)</span>
               </div>
               <span className="text-[10px] text-indigo-600 font-semibold">Click to select for verification</span>
             </div>
-            <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
+            <div className="flex overflow-x-auto flex-nowrap gap-2 pb-2 pt-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent max-w-full">
               {activeEventResponses.map((r) => (
                 <button
                   key={r.id}
@@ -313,18 +314,18 @@ export const CheckInScanner: React.FC<CheckInScannerProps> = ({
                     setSearchQuery(r.reference);
                     handleVerifyQuery(r.reference);
                   }}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border text-left transition cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border text-left transition cursor-pointer flex items-center gap-2 shrink-0 ${
                     activeCandidate?.id === r.id
-                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
                       : r.checkedIn
                       ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
                       : 'bg-gray-50 hover:bg-indigo-50 text-gray-700 border-gray-200'
                   }`}
                 >
-                  <span className="font-mono text-[10px] font-bold">{r.reference}</span>
-                  <span className="truncate max-w-[110px]">{r.fullName}</span>
+                  <span className="font-mono text-[10px] font-extrabold">{r.reference}</span>
+                  <span className="truncate max-w-[120px] font-medium">{r.fullName}</span>
                   {r.checkedIn && (
-                    <Check className={`w-3 h-3 shrink-0 ${activeCandidate?.id === r.id ? 'text-white' : 'text-emerald-600'}`} />
+                    <Check className={`w-3.5 h-3.5 shrink-0 ${activeCandidate?.id === r.id ? 'text-white' : 'text-emerald-600'}`} />
                   )}
                 </button>
               ))}

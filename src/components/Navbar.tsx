@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { UserRole, SiteSettings } from '../types';
+import { AnimatedBottomNav } from './AnimatedBottomNav';
 import {
   FileText,
   Users,
@@ -307,135 +308,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* MOBILE BOTTOM NAVIGATION DOCK (Restricted according to role) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 shadow-2xl px-2 py-1.5 flex items-center justify-around">
-        {/* If Agent: Bulk Reg & Responses */}
-        {currentRole === 'agent' && (
-          <>
-            <button
-              onClick={() => onTabChange('bulk')}
-              className={`flex flex-col items-center justify-center py-1.5 px-6 rounded-xl transition cursor-pointer ${
-                activeTab === 'bulk' ? 'text-emerald-600 font-bold' : 'text-gray-400 font-medium'
-              }`}
-            >
-              <UserCheck className="w-5 h-5 mb-0.5" />
-              <span className="text-xs">Bulk Reg</span>
-            </button>
-            <button
-              onClick={() => onTabChange('responses')}
-              className={`flex flex-col items-center justify-center py-1.5 px-6 rounded-xl transition cursor-pointer ${
-                activeTab === 'responses' ? 'text-emerald-600 font-bold' : 'text-gray-400 font-medium'
-              }`}
-            >
-              <Users className="w-5 h-5 mb-0.5" />
-              <span className="text-xs">Responses</span>
-            </button>
-          </>
-        )}
-
-        {/* If Check-In Officer: Only Check-In */}
-        {currentRole === 'checkin_officer' && (
-          <button
-            onClick={() => onTabChange('checkin')}
-            className="flex flex-col items-center justify-center py-1.5 px-6 rounded-xl text-amber-600 font-bold cursor-pointer"
-          >
-            <QrCode className="w-6 h-6 mb-0.5" />
-            <span className="text-xs">Fast Check-In Scanner</span>
-          </button>
-        )}
-
-        {/* If Event Officer: Forms and Responses */}
-        {currentRole === 'event_officer' && (
-          <>
-            <button
-              onClick={() => onTabChange('forms')}
-              className={`flex flex-col items-center justify-center py-1 px-4 rounded-xl transition cursor-pointer ${
-                activeTab === 'forms' ? 'text-sky-600 font-bold' : 'text-gray-400 font-medium'
-              }`}
-            >
-              <Layers className="w-5 h-5 mb-0.5" />
-              <span className="text-[11px]">Event Forms</span>
-            </button>
-            <button
-              onClick={() => onTabChange('responses')}
-              className={`flex flex-col items-center justify-center py-1 px-4 rounded-xl transition cursor-pointer ${
-                activeTab === 'responses' ? 'text-sky-600 font-bold' : 'text-gray-400 font-medium'
-              }`}
-            >
-              <Users className="w-5 h-5 mb-0.5" />
-              <span className="text-[11px]">Attendee Responses</span>
-            </button>
-          </>
-        )}
-
-        {/* If Admin / Super Admin: Full bottom dock */}
-        {!isRoleRestricted && (
-          <>
-            <button
-              onClick={() => onTabChange('overview')}
-              className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition cursor-pointer ${
-                activeTab === 'overview' ? 'text-indigo-600 font-bold' : 'text-gray-400 font-medium'
-              }`}
-            >
-              <Sparkles className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px]">Overview</span>
-            </button>
-
-            <button
-              onClick={() => onTabChange('forms')}
-              className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition cursor-pointer ${
-                activeTab === 'forms' ? 'text-indigo-600 font-bold' : 'text-gray-400 font-medium'
-              }`}
-            >
-              <Layers className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px]">Forms</span>
-            </button>
-
-            {/* Center Raised Action Button: Create Form */}
-            <button
-              onClick={() => onTabChange('builder')}
-              className="flex flex-col items-center justify-center -mt-5 cursor-pointer group"
-            >
-              <div className="w-12 h-12 rounded-full bg-indigo-600 text-white shadow-lg flex items-center justify-center group-hover:scale-105 active:scale-95 transition">
-                <Plus className="w-6 h-6" />
-              </div>
-              <span className="text-[10px] font-bold text-gray-700 mt-0.5">Create</span>
-            </button>
-
-            <button
-              onClick={() => onTabChange('responses')}
-              className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition cursor-pointer ${
-                activeTab === 'responses' ? 'text-indigo-600 font-bold' : 'text-gray-400 font-medium'
-              }`}
-            >
-              <Users className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px]">Responses</span>
-            </button>
-
-            <button
-              onClick={() => onTabChange('checkin')}
-              className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition cursor-pointer ${
-                activeTab === 'checkin' ? 'text-indigo-600 font-bold' : 'text-gray-400 font-medium'
-              }`}
-            >
-              <QrCode className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px]">Check-In</span>
-            </button>
-
-            <button
-              onClick={() => setShowMobileMoreMenu(true)}
-              className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition cursor-pointer ${
-                ['bulk', 'email', 'settings'].includes(activeTab)
-                  ? 'text-indigo-600 font-bold'
-                  : 'text-gray-400 font-medium'
-              }`}
-            >
-              <Menu className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px]">More</span>
-            </button>
-          </>
-        )}
-      </nav>
+      {/* MOBILE BOTTOM NAVIGATION DOCK (With classic morphing liquid dip motion & active floating circle) */}
+      <AnimatedBottomNav
+        activeTab={activeTab}
+        onTabChange={onTabChange}
+        currentRole={currentRole}
+        onOpenMoreMenu={() => setShowMobileMoreMenu(true)}
+        accentColor={siteSettings.accentColor || '#84cc16'}
+      />
 
       {/* Mobile "More" Drawer Modal for Admin */}
       {showMobileMoreMenu && !isRoleRestricted && (
