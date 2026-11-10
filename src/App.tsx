@@ -24,7 +24,35 @@ import {
 function AppContent() {
   const { showToast } = useToast();
   const [currentTab, setCurrentTab] = useState<string>('overview');
-  const [publicFormSlug, setPublicFormSlug] = useState<string | null>(null);
+  const [publicFormSlug, setPublicFormSlug] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const rawHash = window.location.hash;
+    const rawPath = window.location.pathname;
+    if (rawHash.startsWith('#f=')) {
+      const fullQuery = rawHash.replace('#f=', '').trim();
+      return fullQuery.split('&')[0].split('?')[0].trim() || null;
+    }
+    if (rawPath.startsWith('/f/')) {
+      return rawPath.replace('/f/', '').split('/')[0].split('?')[0].trim() || null;
+    }
+    return null;
+  });
+
+  const [parentCode, setParentCode] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const rawHash = window.location.hash;
+    const rawPath = window.location.pathname;
+    if (rawHash.startsWith('#f=')) {
+      const fullQuery = rawHash.replace('#f=', '').trim();
+      const parentMatch = fullQuery.match(/[?&]parent=([^&]+)/i);
+      return parentMatch ? decodeURIComponent(parentMatch[1]).trim().toUpperCase() : null;
+    }
+    if (rawPath.startsWith('/f/')) {
+      const parentMatch = window.location.search.match(/[?&]parent=([^&]+)/i);
+      return parentMatch ? decodeURIComponent(parentMatch[1]).trim().toUpperCase() : null;
+    }
+    return null;
+  });
   const [isNotFound, setIsNotFound] = useState<boolean>(false);
   const [editingFormId, setEditingFormId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -44,8 +72,6 @@ function AppContent() {
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [showAdminLockModal, setShowAdminLockModal] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(isAdminSessionUnlocked());
-
-  const [parentCode, setParentCode] = useState<string | null>(null);
 
   // Strict route isolation & routing check
   const checkUrlRouting = () => {

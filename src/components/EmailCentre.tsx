@@ -69,6 +69,7 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [autoSending, setAutoSending] = useState(false);
   const [autoMonitorActive, setAutoMonitorActive] = useState(true);
+  const [logFilter, setLogFilter] = useState<'all' | 'sent' | 'failed'>('all');
 
   const predictReminderStage = (eventDateStr?: string): 'reminder_2days' | 'reminder_1day' | 'reminder_dday' => {
     if (!eventDateStr) return 'reminder_2days';
@@ -1187,56 +1188,162 @@ export const EmailCentre: React.FC<EmailCentreProps> = ({
       )}
 
       {/* VIEW: LOGS */}
-      {activeTab === 'logs' && (
-        <div className="bg-white rounded-3xl border border-gray-200 shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-gray-900">Delivery & Transmission Logs</h3>
-            <span className="text-xs text-gray-500">{emailLogs.length} logged batches</span>
-          </div>
+      {activeTab === 'logs' && (() => {
+        const failedLogs = emailLogs.filter((l) => l.status === 'failed');
+        const sentLogs = emailLogs.filter((l) => l.status === 'sent');
+        const filteredLogs = logFilter === 'sent'
+          ? sentLogs
+          : logFilter === 'failed'
+          ? failedLogs
+          : emailLogs;
 
-          {emailLogs.length === 0 ? (
-            <div className="p-12 text-center text-xs text-gray-400">
-              No email transmissions recorded yet.
+        return (
+          <div className="space-y-4">
+            {/* Header & Filter Bar */}
+            <div className="bg-white rounded-3xl p-5 border border-gray-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-indigo-600" />
+                  Delivery & Transmission Logs ({emailLogs.length})
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Track delivered and failed recipient messages, delivery errors, and anti-spam queue statuses.
+                </p>
+              </div>
+
+              {/* Log Category Filter Tabs */}
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setLogFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    logFilter === 'all' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600'
+                  }`}
+                >
+                  All ({emailLogs.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLogFilter('sent')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    logFilter === 'sent' ? 'bg-emerald-500 text-white shadow-2xs font-bold' : 'text-gray-600'
+                  }`}
+                >
+                  Sent ({sentLogs.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLogFilter('failed')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    logFilter === 'failed' ? 'bg-rose-600 text-white shadow-2xs font-bold' : 'text-gray-600'
+                  }`}
+                >
+                  Failed ({failedLogs.length})
+                </button>
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-gray-50 text-gray-500 uppercase font-semibold text-[10px] border-b border-gray-100">
-                  <tr>
-                    <th className="px-4 py-3">Timestamp</th>
-                    <th className="px-4 py-3">Subject</th>
-                    <th className="px-4 py-3">Target Event</th>
-                    <th className="px-4 py-3">Recipients</th>
-                    <th className="px-4 py-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {emailLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 font-bold text-gray-900 max-w-xs truncate">
-                        {log.subject}
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">{log.formTitle || 'Global'}</td>
-                      <td className="px-4 py-3 font-semibold text-indigo-700">
-                        {log.recipientsCount} attendees
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          {log.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+            {/* Failed Email Warning Box */}
+            {failedLogs.length > 0 && (
+              <div className="bg-rose-50 border border-rose-200 p-4 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-rose-950 text-xs">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="font-bold text-sm block text-rose-900">
+                      {failedLogs.length} Failed Transmission(s) Detected
+                    </strong>
+                    <span className="opacity-90">
+                      Some messages were rejected by recipient mail servers or encountered SMTP errors. Review the failure reasons below or retry dispatching.
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    showToast(`Re-enqueuing ${failedLogs.length} failed message(s)...`, 'info');
+                    handleAutoPredictAndSend();
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shrink-0 shadow-xs transition cursor-pointer"
+                >
+                  ⚡ Retry Failed Batch
+                </button>
+              </div>
+            )}
+
+            {/* Logs Table */}
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-xs overflow-hidden">
+              {filteredLogs.length === 0 ? (
+                <div className="p-12 text-center text-xs text-gray-400">
+                  {logFilter === 'failed'
+                    ? 'No failed email transmissions. All messages delivered cleanly!'
+                    : 'No email transmissions recorded yet.'}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 text-gray-500 uppercase font-semibold text-[10px] border-b border-gray-100">
+                      <tr>
+                        <th className="px-4 py-3">Timestamp</th>
+                        <th className="px-4 py-3">Subject / Recipient</th>
+                        <th className="px-4 py-3">Target Event</th>
+                        <th className="px-4 py-3">Recipients</th>
+                        <th className="px-4 py-3">Status / Failure Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredLogs.map((log) => (
+                        <tr
+                          key={log.id}
+                          className={`hover:bg-slate-50/50 ${
+                            log.status === 'failed' ? 'bg-rose-50/30' : ''
+                          }`}
+                        >
+                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 font-bold text-gray-900 max-w-xs">
+                            <div className="truncate">{log.subject}</div>
+                            {log.recipientEmail && (
+                              <div className="text-[11px] text-gray-500 font-normal font-mono">
+                                To: {log.recipientEmail}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">{log.formTitle || 'Global'}</td>
+                          <td className="px-4 py-3 font-semibold text-indigo-700">
+                            {log.recipientsCount} attendee(s)
+                          </td>
+                          <td className="px-4 py-3">
+                            {log.status === 'failed' ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                                  <AlertCircle className="w-3 h-3 text-rose-600" />
+                                  Failed
+                                </span>
+                                {log.errorMessage && (
+                                  <div className="text-[10px] text-rose-600 font-medium mt-1 max-w-xs leading-tight">
+                                    Error: {log.errorMessage}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                Sent
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* VIEW: GMAIL SMTP CONFIGURATION */}
       {activeTab === 'smtp' && (

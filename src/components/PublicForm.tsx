@@ -386,10 +386,36 @@ export const PublicForm: React.FC<PublicFormProps> = ({
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 py-6 sm:py-12 px-3 sm:px-6">
         <div className="max-w-2xl mx-auto space-y-4">
           {submissionResult.isDuplicate && (
-            <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-900 text-xs sm:text-sm font-medium">
-              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-              <div>
-                <strong>Existing Registration Found:</strong> We recognized your email address. Your confirmed pass is displayed below.
+            <div className="bg-amber-500/10 border-2 border-amber-500/30 p-5 rounded-3xl space-y-3 text-amber-950 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-black uppercase tracking-wider">
+                    Registration Already Exists
+                  </span>
+                  <h3 className="text-base font-black text-amber-950 mt-1">
+                    An account with "{submissionResult.response.email}" has already registered!
+                  </h3>
+                  <p className="text-xs text-amber-900/90 mt-1 leading-relaxed">
+                    Re-registering with the same email is not permitted to prevent duplicate pass creation. Your existing confirmed registration pass code is <strong className="font-mono text-amber-950">{submissionResult.response.reference}</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-amber-500/20 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="text-amber-800 font-semibold">Your confirmed event pass is ready below:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    sessionStorage.setItem('eventform_quick_code', submissionResult.response.reference);
+                    window.location.hash = 'portal';
+                  }}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow-2xs"
+                >
+                  Manage in Registrant Portal &rarr;
+                </button>
               </div>
             </div>
           )}

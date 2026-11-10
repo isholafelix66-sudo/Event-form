@@ -82,10 +82,14 @@ export interface EmailLog {
   id: string;
   subject: string;
   recipientsCount: number;
+  successCount?: number;
+  failedCount?: number;
   formId?: string;
   formTitle?: string;
-  status: 'sent' | 'failed' | 'simulated';
-  recipientType: 'all' | 'form_specific' | 'unattended';
+  status: 'sent' | 'failed' | 'queued' | 'simulated';
+  recipientType: 'all' | 'form_specific' | 'unattended' | 'single';
+  recipientEmail?: string;
+  errorMessage?: string;
   timestamp: string;
   sender: string;
 }
