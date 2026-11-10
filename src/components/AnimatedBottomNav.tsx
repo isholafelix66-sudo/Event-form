@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { LucideIcon } from 'lucide-react';
 import { UserRole } from '../types';
 import {
@@ -16,6 +16,7 @@ export interface NavTabItem {
   id: string;
   label: string;
   icon: LucideIcon;
+  isAction?: boolean;
 }
 
 interface AnimatedBottomNavProps {
@@ -23,7 +24,7 @@ interface AnimatedBottomNavProps {
   onTabChange: (tabId: string) => void;
   currentRole: UserRole;
   onOpenMoreMenu: () => void;
-  accentColor?: string; // Lime green default like reference image
+  accentColor?: string;
 }
 
 export const AnimatedBottomNav: React.FC<AnimatedBottomNavProps> = ({
@@ -31,9 +32,9 @@ export const AnimatedBottomNav: React.FC<AnimatedBottomNavProps> = ({
   onTabChange,
   currentRole,
   onOpenMoreMenu,
-  accentColor = '#84cc16', // Neon Lime matching reference image
+  accentColor = '#4f46e5',
 }) => {
-  // Build available items depending on role
+  // Define tab items according to active role
   let items: NavTabItem[] = [];
 
   if (currentRole === 'agent') {
@@ -55,156 +56,95 @@ export const AnimatedBottomNav: React.FC<AnimatedBottomNavProps> = ({
     items = [
       { id: 'overview', label: 'Overview', icon: Sparkles },
       { id: 'forms', label: 'Forms', icon: Layers },
-      { id: 'builder', label: 'Create', icon: Plus },
+      { id: 'builder', label: 'Create', icon: Plus, isAction: true },
       { id: 'responses', label: 'Responses', icon: Users },
       { id: 'checkin', label: 'Check-In', icon: QrCode },
       { id: 'more', label: 'More', icon: Menu },
     ];
   }
 
-  // Find active index
-  let activeIndex = items.findIndex((item) => item.id === activeTab);
-  if (activeIndex === -1) {
-    if (['bulk', 'email', 'settings'].includes(activeTab)) {
-      activeIndex = items.findIndex((item) => item.id === 'more');
-    }
-    if (activeIndex === -1) activeIndex = 0;
+  // Determine active item id
+  let activeId = activeTab;
+  if (['bulk', 'email', 'settings'].includes(activeTab) && !items.some((i) => i.id === activeTab)) {
+    activeId = 'more';
   }
-
-  const count = items.length;
-  // Calculate percentage center for active index (0 to 100)
-  const activePercent = count > 0 ? ((activeIndex + 0.5) / count) * 100 : 50;
-
-  // Notch SVG path width calculation
-  const notchHalfWidth = Math.min(10, 80 / count);
-  const leftBound = Math.max(8, activePercent - notchHalfWidth);
-  const rightBound = Math.min(92, activePercent + notchHalfWidth);
-
-  // Dynamic SVG path for navbar with inverted dip cutout notch at active position
-  const svgPath = `
-    M 0 16
-    C 0 7, 7 0, 16 0
-    L ${leftBound - 2} 0
-    C ${leftBound + 2} 0, ${activePercent - 4} 18, ${activePercent} 18
-    C ${activePercent + 4} 18, ${rightBound - 2} 0, ${rightBound} 0
-    L 84 0
-    C 93 0, 100 7, 100 16
-    L 100 44
-    C 100 53, 93 60, 84 60
-    L 16 60
-    C 7 60, 0 53, 0 44
-    Z
-  `;
 
   return (
     <div className="md:hidden fixed bottom-3 left-3 right-3 z-40 pointer-events-auto">
-      {/* Outer shadow wrapper */}
-      <div className="relative w-full h-[60px] filter drop-shadow-[0_15px_25px_rgba(0,0,0,0.45)]">
-        {/* Animated SVG navbar background with morphing dip curve */}
-        <svg
-          className="absolute inset-0 w-full h-full overflow-visible"
-          viewBox="0 0 100 60"
-          preserveAspectRatio="none"
-        >
-          <defs>
-            <linearGradient id="navBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#18181b" />
-              <stop offset="100%" stopColor="#09090b" />
-            </linearGradient>
-          </defs>
-          <motion.path
-            d={svgPath}
-            fill="url(#navBgGrad)"
-            stroke="#27272a"
-            strokeWidth="0.5"
-            animate={{ d: svgPath }}
-            transition={{
-              type: 'spring',
-              stiffness: 380,
-              damping: 30,
-            }}
-          />
-        </svg>
+      {/* Modern Floating Dock */}
+      <nav className="bg-slate-950/95 backdrop-blur-xl border border-slate-800/90 text-white rounded-2xl shadow-2xl p-1.5 flex items-center justify-around gap-1">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeId === item.id;
 
-        {/* Floating Active Neon Circle Badge */}
-        <motion.div
-          className="absolute -top-4 w-12 h-12 rounded-full flex items-center justify-center pointer-events-none z-30"
-          style={{
-            left: `calc(${activePercent}% - 24px)`,
-            backgroundColor: accentColor,
-            boxShadow: `0 8px 24px -2px ${accentColor}90, 0 0 12px ${accentColor}50`,
-          }}
-          animate={{
-            left: `calc(${activePercent}% - 24px)`,
-          }}
-          transition={{
-            type: 'spring',
-            stiffness: 380,
-            damping: 30,
-          }}
-        >
-          <AnimatePresence mode="wait">
-            {(() => {
-              const ActiveIcon = items[activeIndex]?.icon || Sparkles;
-              return (
-                <motion.div
-                  key={items[activeIndex]?.id}
-                  initial={{ scale: 0.4, rotate: -20, opacity: 0 }}
-                  animate={{ scale: 1, rotate: 0, opacity: 1 }}
-                  exit={{ scale: 0.4, rotate: 20, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                >
-                  <ActiveIcon className="w-6 h-6 text-slate-950 stroke-[2.5]" />
-                </motion.div>
-              );
-            })()}
-          </AnimatePresence>
-        </motion.div>
-
-        {/* Interactive Tab Buttons overlay */}
-        <div className="absolute inset-0 z-20 flex items-center justify-around px-2">
-          {items.map((item, idx) => {
-            const Icon = item.icon;
-            const isActive = idx === activeIndex;
-
+          // Special Center Action Button style for "Create Form"
+          if (item.isAction) {
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  if (item.id === 'more') {
-                    onOpenMoreMenu();
-                  } else {
-                    onTabChange(item.id);
-                  }
-                }}
-                className="flex-1 flex flex-col items-center justify-center h-full cursor-pointer focus:outline-none transition group"
+                onClick={() => onTabChange(item.id)}
+                className="relative flex-1 flex flex-col items-center justify-center py-1 group cursor-pointer focus:outline-none"
               >
-                {!isActive ? (
-                  <motion.div
-                    whileTap={{ scale: 0.85 }}
-                    className="flex flex-col items-center justify-center text-zinc-400 group-hover:text-zinc-200 transition-colors"
-                  >
-                    <Icon className="w-5 h-5 stroke-[1.8]" />
-                    <span className="text-[9px] font-bold mt-0.5 tracking-tight opacity-80">
-                      {item.label}
-                    </span>
-                  </motion.div>
-                ) : (
-                  <div className="flex flex-col items-center justify-end pb-1.5 h-full">
-                    <span
-                      className="text-[10px] font-black tracking-wider uppercase drop-shadow-xs"
-                      style={{ color: accentColor }}
-                    >
-                      {item.label}
-                    </span>
-                  </div>
-                )}
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md transition transform group-hover:scale-105 active:scale-95 ${
+                    isActive
+                      ? 'bg-gradient-to-tr from-indigo-600 to-indigo-500 ring-2 ring-indigo-400'
+                      : 'bg-indigo-600 hover:bg-indigo-500'
+                  }`}
+                >
+                  <Plus className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-300 mt-0.5">
+                  {item.label}
+                </span>
               </button>
             );
-          })}
-        </div>
-      </div>
+          }
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                if (item.id === 'more') {
+                  onOpenMoreMenu();
+                } else {
+                  onTabChange(item.id);
+                }
+              }}
+              className="relative flex-1 flex flex-col items-center justify-center py-2 px-1 rounded-xl cursor-pointer focus:outline-none transition group select-none"
+            >
+              {/* Animated active pill background */}
+              {isActive && (
+                <motion.div
+                  layoutId="activeTabPill"
+                  className="absolute inset-0 bg-indigo-600/90 rounded-xl shadow-xs"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
+              )}
+
+              {/* Icon & Label */}
+              <div className="relative z-10 flex flex-col items-center justify-center">
+                <Icon
+                  className={`w-4 h-4 transition-transform duration-200 ${
+                    isActive
+                      ? 'text-white scale-110 stroke-[2.2]'
+                      : 'text-slate-400 group-hover:text-slate-200 stroke-[1.8]'
+                  }`}
+                />
+                <span
+                  className={`text-[10px] font-bold mt-0.5 tracking-tight transition-colors ${
+                    isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
+                  }`}
+                >
+                  {item.label}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 };

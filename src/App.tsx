@@ -117,13 +117,8 @@ function AppContent() {
       return;
     }
 
-    // 4. Role Route: /checkiofficer or #checkiofficer or #checkin -> Check-In Officer
-    if (
-      path === '/checkiofficer' ||
-      hash === '#checkiofficer' ||
-      path === '/checkin' ||
-      hash === '#checkin'
-    ) {
+    // 4. Role Route: /checkiofficer or #checkiofficer -> Check-In Officer
+    if (path === '/checkiofficer' || hash === '#checkiofficer') {
       setCurrentRole('checkin_officer');
       setCurrentTab('checkin');
       return;
