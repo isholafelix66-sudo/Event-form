@@ -140,15 +140,43 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
     setShowScrollBottomBtn(isFarFromBottom);
   };
 
+  const initialScrollDone = useRef(false);
+
   const scrollToBottom = (smooth = true) => {
     chatBottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
   };
 
   useEffect(() => {
-    if (!showScrollBottomBtn) {
+    if (!initialScrollDone.current && messages.length > 0) {
+      initialScrollDone.current = true;
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = 0;
+      }
+      return;
+    }
+
+    if (!showScrollBottomBtn || isSending) {
       scrollToBottom(true);
     }
-  }, [messages, isSending]);
+  }, [messages.length, isSending]);
+
+  const renderFormattedText = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return (
+      <span>
+        {parts.map((part, i) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return (
+              <strong key={i} className="font-semibold text-white">
+                {part.slice(2, -2)}
+              </strong>
+            );
+          }
+          return part;
+        })}
+      </span>
+    );
+  };
 
   const handleSendMessage = async (customMessage?: string) => {
     const textToSend = customMessage || inputText;
@@ -337,7 +365,7 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
       <div
         ref={chatContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-6 space-y-4 max-w-3xl w-full mx-auto relative scrollbar-none"
+        className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4 max-w-3xl w-full mx-auto relative scrollbar-none touch-pan-y"
       >
         {messages.map((msg) => {
           const isUser = msg.sender === 'user';
@@ -360,7 +388,7 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
                       : 'bg-slate-900 border border-slate-800/90 text-slate-100 rounded-bl-xs shadow-sm'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                  <div className="whitespace-pre-wrap break-words">{renderFormattedText(msg.text)}</div>
 
                   {/* Fallback Contact Card (if unanswerable question or explicit contact request) */}
                   {!isUser && msg.requiresFallback && (

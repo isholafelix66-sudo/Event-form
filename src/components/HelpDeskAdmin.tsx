@@ -289,11 +289,38 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
     showToast('Imported knowledge base saved and ready!', 'success');
   };
 
-  const handleCopyLink = () => {
+  const handleCopyLink = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (!kb) return;
     const link = `${window.location.origin}/#helpdesk=${kb.eventSlug || kb.eventId}`;
-    navigator.clipboard.writeText(link);
-    showToast('Public Help Desk link copied to clipboard!', 'success');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link)
+        .then(() => {
+          showToast('Public Help Desk link copied to clipboard!', 'success');
+        })
+        .catch(() => {
+          fallbackCopyText(link);
+        });
+    } else {
+      fallbackCopyText(link);
+    }
+  };
+
+  const fallbackCopyText = (text: string) => {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      showToast('Public Help Desk link copied to clipboard!', 'success');
+    } catch (err) {
+      showToast('Link created: ' + text, 'info');
+    }
+    document.body.removeChild(textArea);
   };
 
   const handleTestPreviewMessage = async () => {
@@ -606,7 +633,7 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                       </div>
                     </div>
                   ) : (
-                    <div className="border-2 border-dashed border-gray-300 hover:border-indigo-500 rounded-xl p-4 text-center bg-gray-50 hover:bg-indigo-50/30 transition-all mb-3">
+                    <label className="relative block border-2 border-dashed border-gray-300 hover:border-indigo-500 rounded-xl p-4 text-center bg-gray-50 hover:bg-indigo-50/30 transition-all mb-3 cursor-pointer overflow-hidden">
                       <UploadCloud className="w-6 h-6 text-indigo-500 mx-auto mb-1" />
                       <p className="text-xs font-semibold text-gray-700">Tap to upload from Mobile Gallery or Camera</p>
                       <p className="text-[10px] text-gray-400">PNG, JPG, WEBP up to 5MB</p>
@@ -624,9 +651,9 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                             reader.readAsDataURL(file);
                           }
                         }}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full pointer-events-auto"
                       />
-                    </div>
+                    </label>
                   )}
 
                   {/* Or Enter Custom Image URL */}
