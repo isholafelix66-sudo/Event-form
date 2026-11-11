@@ -1265,13 +1265,13 @@ class DatabaseService {
     }
   }
 
-  // Knowledge Base Management per Event
+  // Knowledge Base Management per Event (Strict Firestore Persistence without localStorage interference)
   async getKnowledgeBase(eventIdOrSlug: string): Promise<EventKnowledgeBase | null> {
     if (!eventIdOrSlug) return null;
 
     let kb: EventKnowledgeBase | null = null;
 
-    // 1. Check Firestore first (Authoritative source across refreshes)
+    // 1. Fetch directly from Firestore (Authoritative source)
     try {
       const docSnap = await getDoc(doc(db, 'knowledge_bases', eventIdOrSlug));
       if (docSnap.exists()) {
@@ -1285,24 +1285,11 @@ class DatabaseService {
           }
         }
       }
-    } catch (e) {}
-
-    // 2. Fall back to local storage if offline or not in Firestore
-    if (!kb) {
-      try {
-        const stored = localStorage.getItem(LOCAL_KNOWLEDGE_BASES_KEY);
-        if (stored) {
-          const kbMap: Record<string, EventKnowledgeBase> = JSON.parse(stored);
-          if (kbMap[eventIdOrSlug]) kb = kbMap[eventIdOrSlug];
-          else {
-            const found = Object.values(kbMap).find((k) => k.eventId === eventIdOrSlug || k.eventSlug === eventIdOrSlug);
-            if (found) kb = found;
-          }
-        }
-      } catch (e) {}
+    } catch (e) {
+      console.warn('Firestore getKnowledgeBase read warning:', e);
     }
 
-    // 3. If still not found, generate a blank template
+    // 2. If not found in Firestore, generate blank template and save to Firestore
     if (!kb) {
       const form = await this.getFormBySlug(eventIdOrSlug);
       if (form) {
@@ -1333,20 +1320,9 @@ class DatabaseService {
       if (!kb.sections) kb.sections = [];
       if (!kb.contacts) kb.contacts = [];
       if (!kb.faqs) kb.faqs = [];
-      this.saveKbToLocal(kb);
     }
 
     return kb;
-  }
-
-  private saveKbToLocal(kb) {
-    try {
-      const stored = localStorage.getItem(LOCAL_KNOWLEDGE_BASES_KEY);
-      const kbMap: Record<string, EventKnowledgeBase> = stored ? JSON.parse(stored) : {};
-      kbMap[kb.eventId] = kb;
-      if (kb.eventSlug) kbMap[kb.eventSlug] = kb;
-      localStorage.setItem(LOCAL_KNOWLEDGE_BASES_KEY, JSON.stringify(kbMap));
-    } catch (e) {}
   }
 
   async saveKnowledgeBase(kb: EventKnowledgeBase): Promise<EventKnowledgeBase> {
@@ -1355,15 +1331,22 @@ class DatabaseService {
       updatedAt: new Date().toISOString(),
     };
 
-    this.saveKbToLocal(updatedKb);
-
+    // Strict persistence write to Firestore with verification readback
     try {
-      await setDoc(doc(db, 'knowledge_bases', updatedKb.eventId), cleanForFirestore(updatedKb));
+      const cleaned = cleanForFirestore(updatedKb);
+      await setDoc(doc(db, 'knowledge_bases', updatedKb.eventId), cleaned);
       if (updatedKb.eventSlug && updatedKb.eventSlug !== updatedKb.eventId) {
-        await setDoc(doc(db, 'knowledge_bases', updatedKb.eventSlug), cleanForFirestore(updatedKb));
+        await setDoc(doc(db, 'knowledge_bases', updatedKb.eventSlug), cleaned);
+      }
+
+      // Verification step: read back immediately from Firestore
+      const verifySnap = await getDoc(doc(db, 'knowledge_bases', updatedKb.eventId));
+      if (!verifySnap.exists()) {
+        throw new Error('Firestore write verification failed: document not found after write.');
       }
     } catch (e) {
-      console.warn('Firestore saveKnowledgeBase notice:', e);
+      console.error('CRITICAL: Firestore saveKnowledgeBase verification error:', e);
+      throw e;
     }
 
     return updatedKb;
@@ -1371,21 +1354,7 @@ class DatabaseService {
 
   async deleteKnowledgeBase(eventIdOrSlug: string): Promise<void> {
     try {
-      const stored = localStorage.getItem(LOCAL_KNOWLEDGE_BASES_KEY);
-      if (stored) {
-        const kbMap: Record<string, EventKnowledgeBase> = JSON.parse(stored);
-        const target = kbMap[eventIdOrSlug] || Object.values(kbMap).find((k) => k.eventId === eventIdOrSlug || k.eventSlug === eventIdOrSlug);
-        if (target) {
-          delete kbMap[target.eventId];
-          if (target.eventSlug) delete kbMap[target.eventSlug];
-          localStorage.setItem(LOCAL_KNOWLEDGE_BASES_KEY, JSON.stringify(kbMap));
-
-          deleteDoc(doc(db, 'knowledge_bases', target.eventId)).catch(() => {});
-          if (target.eventSlug && target.eventSlug !== target.eventId) {
-            deleteDoc(doc(db, 'knowledge_bases', target.eventSlug)).catch(() => {});
-          }
-        }
-      }
+      await deleteDoc(doc(db, 'knowledge_bases', eventIdOrSlug)).catch(() => {});
     } catch (e) {}
   }
 
