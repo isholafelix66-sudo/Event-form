@@ -211,18 +211,21 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
       sections: [...(kb.sections || []), newSec],
     };
     setKb(updated);
+    dbService.saveKnowledgeBase(updated);
     setNewSectionTitle('');
     setNewSectionContent('');
-    showToast('Knowledge section added', 'info');
+    showToast('Knowledge section added & saved', 'info');
   };
 
   const handleRemoveSection = (id: string) => {
     if (!kb) return;
-    setKb({
+    const updated = {
       ...kb,
       sections: (kb.sections || []).filter((s) => s.id !== id),
-    });
-    showToast('Section removed', 'info');
+    };
+    setKb(updated);
+    dbService.saveKnowledgeBase(updated);
+    showToast('Section removed & saved', 'info');
   };
 
   // FAQ CRUD
@@ -234,22 +237,26 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
       answer: newAnswer.trim(),
       category: newCategory.trim() || 'General',
     };
-    setKb({
+    const updated = {
       ...kb,
       faqs: [...(kb.faqs || []), newFaq],
-    });
+    };
+    setKb(updated);
+    dbService.saveKnowledgeBase(updated);
     setNewQuestion('');
     setNewAnswer('');
-    showToast('FAQ added', 'info');
+    showToast('FAQ added & saved', 'info');
   };
 
   const handleRemoveFaq = (id: string) => {
     if (!kb) return;
-    setKb({
+    const updated = {
       ...kb,
       faqs: (kb.faqs || []).filter((f) => f.id !== id),
-    });
-    showToast('FAQ removed', 'info');
+    };
+    setKb(updated);
+    dbService.saveKnowledgeBase(updated);
+    showToast('FAQ removed & saved', 'info');
   };
 
   // Contact Option CRUD
@@ -262,22 +269,26 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
       value: newContactValue.trim(),
       link: newContactLink.trim() || (newContactType === 'phone' ? `tel:${newContactValue.trim()}` : newContactType === 'email' ? `mailto:${newContactValue.trim()}` : newContactValue.trim()),
     };
-    setKb({
+    const updated = {
       ...kb,
       contacts: [...(kb.contacts || []), newCnt],
-    });
+    };
+    setKb(updated);
+    dbService.saveKnowledgeBase(updated);
     setNewContactValue('');
     setNewContactLink('');
-    showToast('Contact channel added', 'info');
+    showToast('Contact channel added & saved', 'info');
   };
 
   const handleRemoveContact = (id: string) => {
     if (!kb) return;
-    setKb({
+    const updated = {
       ...kb,
       contacts: (kb.contacts || []).filter((c) => c.id !== id),
-    });
-    showToast('Contact channel removed', 'info');
+    };
+    setKb(updated);
+    dbService.saveKnowledgeBase(updated);
+    showToast('Contact channel removed & saved', 'info');
   };
 
   // Bulk Document Import / Auto-Organization
@@ -687,7 +698,11 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                   <input
                     type="text"
                     value={kb.eventTitle}
-                    onChange={(e) => setKb({ ...kb, eventTitle: e.target.value })}
+                    onChange={(e) => {
+                      const updated = { ...kb, eventTitle: e.target.value };
+                      setKb(updated);
+                      dbService.saveKnowledgeBase(updated);
+                    }}
                     className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                   />
                 </div>
@@ -699,7 +714,11 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                   <textarea
                     rows={4}
                     value={kb.overview || ''}
-                    onChange={(e) => setKb({ ...kb, overview: e.target.value })}
+                    onChange={(e) => {
+                      const updated = { ...kb, overview: e.target.value };
+                      setKb(updated);
+                      dbService.saveKnowledgeBase(updated);
+                    }}
                     placeholder="General description of the event..."
                     className="w-full bg-gray-50 border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                   />
@@ -712,7 +731,11 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                   <textarea
                     rows={3}
                     value={kb.venueDetails || ''}
-                    onChange={(e) => setKb({ ...kb, venueDetails: e.target.value })}
+                    onChange={(e) => {
+                      const updated = { ...kb, venueDetails: e.target.value };
+                      setKb(updated);
+                      dbService.saveKnowledgeBase(updated);
+                    }}
                     placeholder="Venue name, directions, parking info..."
                     className="w-full bg-gray-50 border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                   />
@@ -731,7 +754,11 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                   <textarea
                     rows={4}
                     value={kb.scheduleDetails || ''}
-                    onChange={(e) => setKb({ ...kb, scheduleDetails: e.target.value })}
+                    onChange={(e) => {
+                      const updated = { ...kb, scheduleDetails: e.target.value };
+                      setKb(updated);
+                      dbService.saveKnowledgeBase(updated);
+                    }}
                     placeholder="Door opening times, timetable, agenda..."
                     className="w-full bg-gray-50 border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                   />
@@ -744,7 +771,11 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                   <textarea
                     rows={2}
                     value={kb.dressCode || ''}
-                    onChange={(e) => setKb({ ...kb, dressCode: e.target.value })}
+                    onChange={(e) => {
+                      const updated = { ...kb, dressCode: e.target.value };
+                      setKb(updated);
+                      dbService.saveKnowledgeBase(updated);
+                    }}
                     placeholder="Smart casual, formal, required items..."
                     className="w-full bg-gray-50 border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                   />
@@ -893,9 +924,11 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                           type="text"
                           value={sec.title}
                           onChange={(e) => {
-                            const updated = [...(kb.sections || [])];
-                            updated[index].title = e.target.value;
-                            setKb({ ...kb, sections: updated });
+                            const updatedSecs = [...(kb.sections || [])];
+                            updatedSecs[index].title = e.target.value;
+                            const updatedKb = { ...kb, sections: updatedSecs };
+                            setKb(updatedKb);
+                            dbService.saveKnowledgeBase(updatedKb);
                           }}
                           className="font-bold text-sm text-gray-900 border-b border-transparent focus:border-indigo-500 focus:outline-none bg-transparent"
                         />
@@ -911,9 +944,11 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                         rows={3}
                         value={sec.content}
                         onChange={(e) => {
-                          const updated = [...(kb.sections || [])];
-                          updated[index].content = e.target.value;
-                          setKb({ ...kb, sections: updated });
+                          const updatedSecs = [...(kb.sections || [])];
+                          updatedSecs[index].content = e.target.value;
+                          const updatedKb = { ...kb, sections: updatedSecs };
+                          setKb(updatedKb);
+                          dbService.saveKnowledgeBase(updatedKb);
                         }}
                         className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-800 leading-relaxed focus:bg-white focus:ring-2 focus:ring-indigo-500"
                       />
@@ -1004,9 +1039,11 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                             type="text"
                             value={faq.question}
                             onChange={(e) => {
-                              const updated = [...(kb.faqs || [])];
-                              updated[index].question = e.target.value;
-                              setKb({ ...kb, faqs: updated });
+                              const updatedFaqs = [...(kb.faqs || [])];
+                              updatedFaqs[index].question = e.target.value;
+                              const updatedKb = { ...kb, faqs: updatedFaqs };
+                              setKb(updatedKb);
+                              dbService.saveKnowledgeBase(updatedKb);
                             }}
                             className="font-semibold text-sm text-gray-900 w-full focus:outline-none focus:border-b focus:border-indigo-500"
                           />
@@ -1015,9 +1052,11 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
                           rows={2}
                           value={faq.answer}
                           onChange={(e) => {
-                            const updated = [...(kb.faqs || [])];
-                            updated[index].answer = e.target.value;
-                            setKb({ ...kb, faqs: updated });
+                            const updatedFaqs = [...(kb.faqs || [])];
+                            updatedFaqs[index].answer = e.target.value;
+                            const updatedKb = { ...kb, faqs: updatedFaqs };
+                            setKb(updatedKb);
+                            dbService.saveKnowledgeBase(updatedKb);
                           }}
                           className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs text-gray-700 focus:bg-white focus:ring-1 focus:ring-indigo-500"
                         />

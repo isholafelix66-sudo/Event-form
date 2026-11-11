@@ -1271,40 +1271,53 @@ class DatabaseService {
 
     let kb: EventKnowledgeBase | null = null;
 
-    // 1. Check robust local storage cache first to prevent refresh/offline data loss
-    try {
-      const localKey = `eventform_kb_${eventIdOrSlug}`;
-      const stored = localStorage.getItem(localKey);
-      if (stored) {
-        kb = JSON.parse(stored);
-      }
-    } catch (e) {}
+    // 1. Get associated form details to know both id and slug
+    const form = await this.getFormBySlug(eventIdOrSlug);
+    const formId = form?.id || eventIdOrSlug;
+    const formSlug = form?.slug || eventIdOrSlug;
 
-    // 2. Fetch from Firestore
-    try {
-      const docSnap = await getDoc(doc(db, 'knowledge_bases', eventIdOrSlug));
-      if (docSnap.exists()) {
-        const remoteKb = docSnap.data() as EventKnowledgeBase;
-        if (remoteKb && (remoteKb.faqs?.length || remoteKb.sections?.length || remoteKb.overview)) {
-          kb = remoteKb;
-        }
-      } else {
-        const form = await this.getFormBySlug(eventIdOrSlug);
-        if (form && form.slug && form.slug !== eventIdOrSlug) {
-          const slugSnap = await getDoc(doc(db, 'knowledge_bases', form.slug));
-          if (slugSnap.exists()) {
-            const remoteSlugKb = slugSnap.data() as EventKnowledgeBase;
-            if (remoteSlugKb) kb = remoteSlugKb;
+    // Keys to check in priority order
+    const keysToCheck = Array.from(new Set([eventIdOrSlug, formId, formSlug])).filter(Boolean);
+
+    // 2. Check LocalStorage cache first for any of these keys
+    for (const key of keysToCheck) {
+      try {
+        const stored = localStorage.getItem(`eventform_kb_${key}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && (parsed.faqs?.length || parsed.sections?.length || parsed.overview)) {
+            kb = parsed;
+            break;
+          } else if (!kb) {
+            kb = parsed; // keep as candidate
           }
         }
-      }
-    } catch (e) {
-      console.warn('Firestore getKnowledgeBase read warning:', e);
+      } catch (e) {}
     }
 
-    // 3. If not found anywhere, generate template and save
+    // 3. Check Firestore for any of these keys
+    for (const key of keysToCheck) {
+      try {
+        const docSnap = await getDoc(doc(db, 'knowledge_bases', key));
+        if (docSnap.exists()) {
+          const remoteKb = docSnap.data() as EventKnowledgeBase;
+          if (remoteKb) {
+            // If remote has faqs or sections or overview, take it over a blank candidate
+            if (remoteKb.faqs?.length || remoteKb.sections?.length || remoteKb.overview) {
+              kb = remoteKb;
+              break;
+            } else if (!kb) {
+              kb = remoteKb;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`Firestore getKnowledgeBase read warning for key ${key}:`, e);
+      }
+    }
+
+    // 4. If still not found, generate template and save
     if (!kb) {
-      const form = await this.getFormBySlug(eventIdOrSlug);
       if (form) {
         kb = {
           eventId: form.id,
@@ -1333,7 +1346,12 @@ class DatabaseService {
       if (!kb.sections) kb.sections = [];
       if (!kb.contacts) kb.contacts = [];
       if (!kb.faqs) kb.faqs = [];
-      // Cache locally
+      if (form) {
+        kb.eventId = form.id;
+        kb.eventSlug = form.slug;
+        kb.eventTitle = form.title;
+      }
+      // Cache locally under both keys
       try {
         localStorage.setItem(`eventform_kb_${kb.eventId}`, JSON.stringify(kb));
         if (kb.eventSlug) {
@@ -1351,7 +1369,16 @@ class DatabaseService {
       updatedAt: new Date().toISOString(),
     };
 
-    // Save to local storage immediately for robust persistence across refreshes
+    // Make sure eventSlug and eventTitle are set
+    if (!updatedKb.eventSlug || !updatedKb.eventTitle) {
+      const form = await this.getFormBySlug(updatedKb.eventId);
+      if (form) {
+        if (!updatedKb.eventSlug) updatedKb.eventSlug = form.slug;
+        if (!updatedKb.eventTitle) updatedKb.eventTitle = form.title;
+      }
+    }
+
+    // Save to local storage under both ID and Slug
     try {
       localStorage.setItem(`eventform_kb_${updatedKb.eventId}`, JSON.stringify(updatedKb));
       if (updatedKb.eventSlug) {
@@ -1359,18 +1386,12 @@ class DatabaseService {
       }
     } catch (e) {}
 
-    // Strict persistence write to Firestore with verification readback
+    // Strict persistence write to Firestore under both ID and Slug
     try {
       const cleaned = cleanForFirestore(updatedKb);
       await setDoc(doc(db, 'knowledge_bases', updatedKb.eventId), cleaned);
       if (updatedKb.eventSlug && updatedKb.eventSlug !== updatedKb.eventId) {
         await setDoc(doc(db, 'knowledge_bases', updatedKb.eventSlug), cleaned);
-      }
-
-      // Verification step: read back immediately from Firestore
-      const verifySnap = await getDoc(doc(db, 'knowledge_bases', updatedKb.eventId));
-      if (!verifySnap.exists()) {
-        console.warn('Firestore write verification notice: document not immediately indexed, relying on local storage cache.');
       }
     } catch (e) {
       console.warn('Firestore saveKnowledgeBase warning (persisted in local storage):', e);
