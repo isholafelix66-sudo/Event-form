@@ -90,7 +90,37 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
     async function loadForms() {
       setLoading(true);
       try {
-        const list = await dbService.getForms();
+        await dbService.seedRemoteIfEmpty();
+        let list = await dbService.getForms();
+        if (list.length === 0) {
+          // Create default Worship Encounter 3.0 form if none exist
+          const defaultForm: EventForm = {
+            id: 'form-worship-encounter-3',
+            slug: 'worship-encounter-3',
+            title: 'Worship Encounter 3.0',
+            description: 'Official Worship Encounter 3.0 Registration & AI Help Desk',
+            status: 'published',
+            eventDate: '2026-11-13T22:00',
+            eventLocation: 'Ijeru Baptist Church, Ogbomoso',
+            coverImage: 'https://images.unsplash.com/photo-1548625361-18da87740f90?auto=format&fit=crop&w=1600&q=80',
+            themeColor: '#4f46e5',
+            accentColor: '#10b981',
+            fontFamily: 'sans',
+            confirmationMessage: 'Your registration for Worship Encounter 3.0 is confirmed!',
+            ownerId: 'admin-1',
+            ownerEmail: 'isholafelix609@gmail.com',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            maxAttendees: 1000,
+            questions: [
+              { id: 'q-name', type: 'short_answer', title: 'Full Name', placeholder: 'e.g. Samuel Adebayo', required: true },
+              { id: 'q-email', type: 'email', title: 'Email Address', placeholder: 'you@example.com', required: true },
+              { id: 'q-phone', type: 'phone', title: 'Phone / WhatsApp Number', placeholder: '+234 812 345 6789', required: true },
+            ],
+          };
+          await dbService.saveForm(defaultForm);
+          list = [defaultForm];
+        }
         if (isMounted) {
           setForms(list);
           if (list.length > 0) {
