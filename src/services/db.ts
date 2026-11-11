@@ -1598,7 +1598,12 @@ class DatabaseService {
   }
 
   // Help Desk User & Response Analytics Tracking
-  async recordHelpDeskInteraction(eventId: string, isNewUser: boolean = false): Promise<{ uniqueUsers: number; responsesDelivered: number }> {
+  async recordHelpDeskInteraction(
+    eventId: string,
+    question: string,
+    answer: string,
+    isNewUser: boolean = false
+  ): Promise<{ uniqueUsers: number; responsesDelivered: number }> {
     const key = `helpdesk_stats_${eventId}`;
     let stats = { uniqueUsers: 14, responsesDelivered: 42 };
     try {
@@ -1610,8 +1615,17 @@ class DatabaseService {
 
       localStorage.setItem(key, JSON.stringify(stats));
 
+      // Save interaction
+      const interaction = {
+        id: `int-${Date.now()}`,
+        question,
+        answer,
+        timestamp: new Date().toISOString(),
+      };
+
       // Attempt Firestore sync
       setDoc(doc(db, 'helpdesk_analytics', eventId), stats, { merge: true }).catch(() => {});
+      setDoc(doc(db, 'helpdesk_analytics', eventId, 'interactions', interaction.id), interaction).catch(() => {});
     } catch (e) {}
     return stats;
   }
@@ -1634,6 +1648,52 @@ class DatabaseService {
       }
     } catch (e) {}
     return stats;
+  }
+
+  async getHelpDeskInteractions(eventId: string): Promise<any[]> {
+    try {
+      const snap = await getDocs(collection(db, 'helpdesk_analytics', eventId, 'interactions'));
+      return snap.docs.map((d) => d.data());
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Support Requests
+  async saveSupportRequest(request: { eventId: string; name: string; email: string; query: string }): Promise<any> {
+    const id = `sup-${Date.now()}`;
+    const reqData = {
+      ...request,
+      id,
+      status: 'pending',
+      timestamp: new Date().toISOString(),
+    };
+    try {
+      await setDoc(doc(db, 'support_requests', id), reqData);
+      return reqData;
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  async getSupportRequests(eventId: string): Promise<any[]> {
+    try {
+      const snap = await getDocs(collection(db, 'support_requests'));
+      return snap.docs
+        .map((d) => d.data())
+        .filter((r) => r.eventId === eventId)
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async updateSupportRequestStatus(id: string, status: 'pending' | 'replied'): Promise<void> {
+    try {
+      await updateDoc(doc(db, 'support_requests', id), { status });
+    } catch (e) {
+      throw e;
+    }
   }
 }
 

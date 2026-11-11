@@ -50,10 +50,16 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
   const [kb, setKb] = useState<EventKnowledgeBase | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'sections' | 'faqs' | 'contacts' | 'paste' | 'preview'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'sections' | 'faqs' | 'contacts' | 'paste' | 'preview' | 'interactions' | 'support'>('overview');
   const [helpDeskStats, setHelpDeskStats] = useState<{ uniqueUsers: number; responsesDelivered: number }>({ uniqueUsers: 28, responsesDelivered: 146 });
+  const [interactions, setInteractions] = useState<any[]>([]);
+  const [supportRequests, setSupportRequests] = useState<any[]>([]);
 
   // Paste Knowledge Base state
+  // ... (rest of state)
+
+
+// ... (in render)
   const [pastedDocumentText, setPastedDocumentText] = useState<string>('');
   const [isAnalyzingText, setIsAnalyzingText] = useState<boolean>(false);
   const [showImportPreviewModal, setShowImportPreviewModal] = useState<boolean>(false);
@@ -109,19 +115,23 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
     async function fetchKb() {
       setLoading(true);
       try {
-        const [fetched, stats] = await Promise.all([
+        const [fetched, stats, interactions, supportRequests] = await Promise.all([
           dbService.getKnowledgeBase(selectedFormId),
           dbService.getHelpDeskStats(selectedFormId),
+          dbService.getHelpDeskInteractions(selectedFormId),
+          dbService.getSupportRequests(selectedFormId),
         ]);
         if (isMounted) {
           setKb(fetched);
           setHelpDeskStats(stats);
+          setInteractions(interactions);
+          setSupportRequests(supportRequests);
           setPreviewMessages([
             { sender: 'ai', text: `Interactive test mode ready for "${fetched?.eventTitle}". Ask a question below to test AI answers.` },
           ]);
         }
       } catch (err) {
-        console.error('Failed to fetch KB:', err);
+        console.error('Failed to fetch KB/Stats/Interactions:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -589,7 +599,27 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
             >
               AI Test Sandbox
             </button>
-
+            <button
+              onClick={() => setActiveTab('interactions')}
+              className={`px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-all ${
+                activeTab === 'interactions'
+                  ? 'border-indigo-600 text-indigo-600 font-bold'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              📊 Interaction History ({interactions.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('support')}
+              className={`px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-all ${
+                activeTab === 'support'
+                  ? 'border-indigo-600 text-indigo-600 font-bold'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              📩 Support Requests ({supportRequests.length})
+            </button>
+            
             <button
               onClick={() => handleSaveKb()}
               disabled={saving}
@@ -602,6 +632,7 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
 
           {/* TAB 1: OVERVIEW & DETAILS */}
           {activeTab === 'overview' && (
+            // ... (keep the rest as is)
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                 <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
@@ -1310,6 +1341,36 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
           </div>
         </div>
       )}
+          {activeTab === 'support' && (
+              <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                <h3 className="font-bold text-gray-900 text-base">Support Inbox</h3>
+                {supportRequests.length > 0 ? (
+                  <div className="space-y-3">
+                    {supportRequests.map((req) => (
+                      <div key={req.id} className="bg-white p-4 rounded-xl border border-gray-200 space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold">{req.name} ({req.email})</span>
+                          <span className={req.status === 'pending' ? 'text-amber-600' : 'text-emerald-600'}>{req.status}</span>
+                        </div>
+                        <p className="text-sm">{req.query}</p>
+                        <button 
+                          onClick={() => {
+                            const subject = encodeURIComponent('Re: Worship Encounter Support Request');
+                            const body = encodeURIComponent(`Hello ${req.name},\n\nRegarding your request:\n"${req.query}"\n\n`);
+                            window.location.href = `mailto:${req.email}?subject=${subject}&body=${body}`;
+                          }}
+                          className="text-xs text-indigo-600 font-medium"
+                        >
+                          Reply via Email
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">No support requests yet.</p>
+                )}
+              </div>
+          )}
     </div>
   );
 };

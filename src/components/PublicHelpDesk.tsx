@@ -52,6 +52,13 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
   const [isSending, setIsSending] = useState<boolean>(false);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
+  
+  // Support Request state
+  const [showSupportModal, setShowSupportModal] = useState<boolean>(false);
+  const [supportName, setSupportName] = useState<string>('');
+  const [supportEmail, setSupportEmail] = useState<string>('');
+  const [supportQuery, setSupportQuery] = useState<string>('');
+  const [isSendingSupport, setIsSendingSupport] = useState<boolean>(false);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
@@ -275,6 +282,28 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
     }
   };
 
+  const handleSendSupportRequest = async () => {
+    if (!kb || !supportName.trim() || !supportEmail.trim() || !supportQuery.trim() || isSendingSupport) return;
+    setIsSendingSupport(true);
+    try {
+      await dbService.saveSupportRequest({
+        eventId: kb.eventId,
+        name: supportName.trim(),
+        email: supportEmail.trim(),
+        query: supportQuery.trim(),
+      });
+      alert('Support request sent successfully! Our team will reply to your email soon.');
+      setShowSupportModal(false);
+      setSupportName('');
+      setSupportEmail('');
+      setSupportQuery('');
+    } catch (e) {
+      alert('Failed to send support request. Please try again.');
+    } finally {
+      setIsSendingSupport(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-dvh w-full bg-slate-950 text-white flex flex-col items-center justify-center p-4">
@@ -421,6 +450,13 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
                           </a>
                         ))}
                       </div>
+
+                      <button
+                        onClick={() => setShowSupportModal(true)}
+                        className="w-full mt-3 flex items-center justify-center gap-2 p-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-500 transition-all active:scale-95"
+                      >
+                        <Mail className="w-3.5 h-3.5" /> Request Human Support
+                      </button>
                     </div>
                   )}
 
@@ -609,6 +645,22 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
             >
               Close Guide
             </button>
+          </div>
+        </div>
+      )}
+      {showSupportModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 text-slate-200 relative animate-in zoom-in-95 duration-150">
+            <button onClick={() => setShowSupportModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+            <h3 className="text-lg font-bold text-white mb-4">Request Human Support</h3>
+            <div className="space-y-3">
+              <input type="text" placeholder="Your Name" value={supportName} onChange={(e) => setSupportName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm" />
+              <input type="email" placeholder="Your Email" value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm" />
+              <textarea placeholder="How can we help you?" value={supportQuery} onChange={(e) => setSupportQuery(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm" rows={4} />
+              <button onClick={handleSendSupportRequest} disabled={isSendingSupport} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl text-sm hover:bg-indigo-500 disabled:opacity-50">
+                {isSendingSupport ? 'Sending...' : 'Send Request'}
+              </button>
+            </div>
           </div>
         </div>
       )}
