@@ -129,6 +129,23 @@ export interface KnowledgeBaseFAQ {
   category?: string;
 }
 
+export interface KnowledgeBaseSection {
+  id: string;
+  title: string;
+  content: string;
+  order: number;
+}
+
+export type ContactChannelType = 'phone' | 'whatsapp' | 'email' | 'social' | 'website' | 'other';
+
+export interface ContactOption {
+  id: string;
+  type: ContactChannelType;
+  label: string;
+  value: string;
+  link?: string;
+}
+
 export interface EventKnowledgeBase {
   eventId: string; // formId or form slug
   eventSlug: string;
@@ -137,14 +154,24 @@ export interface EventKnowledgeBase {
   venueDetails?: string;
   scheduleDetails?: string;
   dressCode?: string;
+  venueImage?: string; // Church/Venue photo uploaded or linked by admin
+  galleryImages?: string[]; // Optional additional photos
   contactPhone?: string;
   contactEmail?: string;
   whatsappLink?: string;
   socialLink?: string;
   fallbackMessage?: string;
   fallbackLink?: string;
+  sections?: KnowledgeBaseSection[];
+  contacts?: ContactOption[];
   faqs: KnowledgeBaseFAQ[];
   updatedAt: string;
 }
+
+export interface ChatHistoryItem {
+  role: 'user' | 'model';
+  parts: Array<{ text: string }>;
+}
+
 
 

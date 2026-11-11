@@ -1269,71 +1269,138 @@ class DatabaseService {
   async getKnowledgeBase(eventIdOrSlug: string): Promise<EventKnowledgeBase | null> {
     if (!eventIdOrSlug) return null;
 
+    let kb: EventKnowledgeBase | null = null;
+
     // 1. Check local storage
     try {
       const stored = localStorage.getItem(LOCAL_KNOWLEDGE_BASES_KEY);
       if (stored) {
         const kbMap: Record<string, EventKnowledgeBase> = JSON.parse(stored);
-        if (kbMap[eventIdOrSlug]) return kbMap[eventIdOrSlug];
-        const found = Object.values(kbMap).find((k) => k.eventId === eventIdOrSlug || k.eventSlug === eventIdOrSlug);
-        if (found) return found;
+        if (kbMap[eventIdOrSlug]) kb = kbMap[eventIdOrSlug];
+        else {
+          const found = Object.values(kbMap).find((k) => k.eventId === eventIdOrSlug || k.eventSlug === eventIdOrSlug);
+          if (found) kb = found;
+        }
       }
     } catch (e) {}
 
-    // 2. Check Firestore
-    try {
-      const docSnap = await getDoc(doc(db, 'knowledge_bases', eventIdOrSlug));
-      if (docSnap.exists()) {
-        const kb = docSnap.data() as EventKnowledgeBase;
-        this.saveKbToLocal(kb);
-        return kb;
-      }
-    } catch (e) {}
-
-    // 3. Fall back to finding matching form and creating a default knowledge base
-    const form = await this.getFormBySlug(eventIdOrSlug);
-    if (form) {
-      const defaultKb: EventKnowledgeBase = {
-        eventId: form.id,
-        eventSlug: form.slug,
-        eventTitle: form.title,
-        overview: form.description || `${form.title} official event portal and help desk.`,
-        venueDetails: form.eventLocation || 'Venue details will be communicated upon registration.',
-        scheduleDetails: form.eventDate ? `Date & Time: ${new Date(form.eventDate).toLocaleString()}` : 'Schedule to be announced.',
-        dressCode: 'Smart Casual / Formal Modest Attire',
-        contactPhone: '+44 7911 123456',
-        contactEmail: form.ownerEmail || 'helpdesk@eventform.io',
-        whatsappLink: 'https://wa.me/447911123456',
-        socialLink: '',
-        fallbackMessage: `I don't have that specific detail in our event guide right now. Please reach out to our event coordination team directly using the contact details below:`,
-        fallbackLink: '',
-        faqs: [
-          {
-            id: 'faq-1',
-            question: `What time does ${form.title} start?`,
-            answer: form.eventDate ? `Doors open prior to ${new Date(form.eventDate).toLocaleString()}. Please arrive 15 minutes early for check-in.` : 'Please check your registration email for exact timing.',
-            category: 'Schedule',
-          },
-          {
-            id: 'faq-2',
-            question: `Where is the venue located?`,
-            answer: form.eventLocation ? `The event will take place at: ${form.eventLocation}` : 'Location details will be shared with registered delegates.',
-            category: 'Venue',
-          },
-          {
-            id: 'faq-3',
-            question: `How do I receive my registration pass?`,
-            answer: 'Your digital QR registration pass is automatically sent to your registered email address right after completing the registration form.',
-            category: 'Registration',
-          },
-        ],
-        updatedAt: new Date().toISOString(),
-      };
-      await this.saveKnowledgeBase(defaultKb);
-      return defaultKb;
+    // 2. Check Firestore if not cached
+    if (!kb) {
+      try {
+        const docSnap = await getDoc(doc(db, 'knowledge_bases', eventIdOrSlug));
+        if (docSnap.exists()) {
+          kb = docSnap.data() as EventKnowledgeBase;
+        }
+      } catch (e) {}
     }
 
-    return null;
+    // 3. Fall back to finding matching form and creating a default knowledge base
+    if (!kb) {
+      const form = await this.getFormBySlug(eventIdOrSlug);
+      if (form) {
+        kb = {
+          eventId: form.id,
+          eventSlug: form.slug,
+          eventTitle: form.title,
+          overview: form.description || `${form.title} official event portal and help desk.`,
+          venueDetails: form.eventLocation || 'Venue details will be communicated upon registration.',
+          scheduleDetails: form.eventDate ? `Date & Time: ${new Date(form.eventDate).toLocaleString()}` : 'Schedule to be announced.',
+          dressCode: 'Smart Casual / Formal Modest Attire',
+          contactPhone: '+44 7911 123456',
+          contactEmail: form.ownerEmail || 'helpdesk@eventform.io',
+          whatsappLink: 'https://wa.me/447911123456',
+          socialLink: '',
+          fallbackMessage: `I don't have that specific detail in our event guide right now, but our support team will be happy to assist you. You can reach us through any of the contact options below:`,
+          fallbackLink: '',
+          sections: [
+            {
+              id: 'sec-overview',
+              title: 'Event Overview',
+              content: form.description || `${form.title} official event portal and help desk.`,
+              order: 1,
+            },
+            {
+              id: 'sec-venue',
+              title: 'Venue & Location',
+              content: form.eventLocation || 'Venue details will be shared with registered delegates.',
+              order: 2,
+            },
+            {
+              id: 'sec-schedule',
+              title: 'Schedule & Timing',
+              content: form.eventDate ? `Event Date: ${new Date(form.eventDate).toLocaleString()}` : 'Schedule details to be announced.',
+              order: 3,
+            },
+          ],
+          contacts: [
+            {
+              id: 'cnt-phone',
+              type: 'phone',
+              label: 'Phone Support Desk',
+              value: '+44 7911 123456',
+              link: 'tel:+447911123456',
+            },
+            {
+              id: 'cnt-whatsapp',
+              type: 'whatsapp',
+              label: 'WhatsApp Concierge',
+              value: '+44 7911 123456',
+              link: 'https://wa.me/447911123456',
+            },
+            {
+              id: 'cnt-email',
+              type: 'email',
+              label: 'Organizer Email',
+              value: form.ownerEmail || 'helpdesk@eventform.io',
+              link: `mailto:${form.ownerEmail || 'helpdesk@eventform.io'}`,
+            },
+          ],
+          faqs: [
+            {
+              id: 'faq-1',
+              question: `What time does ${form.title} start?`,
+              answer: form.eventDate ? `Doors open prior to ${new Date(form.eventDate).toLocaleString()}. Please arrive 15 minutes early for check-in.` : 'Please check your registration email for exact timing.',
+              category: 'Schedule',
+            },
+            {
+              id: 'faq-2',
+              question: `Where is the venue located?`,
+              answer: form.eventLocation ? `The event will take place at: ${form.eventLocation}` : 'Location details will be shared with registered delegates.',
+              category: 'Venue',
+            },
+            {
+              id: 'faq-3',
+              question: `How do I receive my registration pass?`,
+              answer: 'Your digital QR registration pass is automatically sent to your registered email address right after completing the registration form.',
+              category: 'Registration',
+            },
+          ],
+          updatedAt: new Date().toISOString(),
+        };
+        await this.saveKnowledgeBase(kb);
+      }
+    }
+
+    if (kb) {
+      // Ensure arrays exist
+      if (!kb.sections) kb.sections = [];
+      if (!kb.contacts) {
+        kb.contacts = [];
+        if (kb.contactPhone) {
+          kb.contacts.push({ id: 'c-ph', type: 'phone', label: 'Phone', value: kb.contactPhone, link: `tel:${kb.contactPhone}` });
+        }
+        if (kb.whatsappLink) {
+          kb.contacts.push({ id: 'c-wa', type: 'whatsapp', label: 'WhatsApp', value: 'Chat on WhatsApp', link: kb.whatsappLink });
+        }
+        if (kb.contactEmail) {
+          kb.contacts.push({ id: 'c-em', type: 'email', label: 'Email', value: kb.contactEmail, link: `mailto:${kb.contactEmail}` });
+        }
+      }
+      if (!kb.faqs) kb.faqs = [];
+      this.saveKbToLocal(kb);
+    }
+
+    return kb;
   }
 
   private saveKbToLocal(kb: EventKnowledgeBase) {
@@ -1365,7 +1432,28 @@ class DatabaseService {
 
     return updatedKb;
   }
+
+  async deleteKnowledgeBase(eventIdOrSlug: string): Promise<void> {
+    try {
+      const stored = localStorage.getItem(LOCAL_KNOWLEDGE_BASES_KEY);
+      if (stored) {
+        const kbMap: Record<string, EventKnowledgeBase> = JSON.parse(stored);
+        const target = kbMap[eventIdOrSlug] || Object.values(kbMap).find((k) => k.eventId === eventIdOrSlug || k.eventSlug === eventIdOrSlug);
+        if (target) {
+          delete kbMap[target.eventId];
+          if (target.eventSlug) delete kbMap[target.eventSlug];
+          localStorage.setItem(LOCAL_KNOWLEDGE_BASES_KEY, JSON.stringify(kbMap));
+
+          deleteDoc(doc(db, 'knowledge_bases', target.eventId)).catch(() => {});
+          if (target.eventSlug && target.eventSlug !== target.eventId) {
+            deleteDoc(doc(db, 'knowledge_bases', target.eventSlug)).catch(() => {});
+          }
+        }
+      }
+    } catch (e) {}
+  }
 }
+
 
 
 export const dbService = new DatabaseService();

@@ -454,7 +454,7 @@ async function createServer() {
 
   // Private-Link Event Help Desk AI Endpoint (Gemini API)
   app.post('/api/helpdesk/chat', async (req, res) => {
-    const { userMessage, knowledgeBase } = req.body;
+    const { userMessage, knowledgeBase, chatHistory } = req.body;
 
     if (!userMessage || typeof userMessage !== 'string' || !userMessage.trim()) {
       return res.status(400).json({ success: false, error: 'User message is required.' });
@@ -466,14 +466,28 @@ async function createServer() {
 
     const apiKey = process.env.GEMINI_API_KEY || '';
 
-    // If API key is not configured, return polite fallback response
+    // Extract dynamic sections text if available
+    const sectionsText = Array.isArray(knowledgeBase.sections) && knowledgeBase.sections.length > 0
+      ? knowledgeBase.sections.map((s: any) => `### SECTION: ${s.title}\n${s.content}`).join('\n\n')
+      : '';
+
+    const faqsListText = Array.isArray(knowledgeBase.faqs) && knowledgeBase.faqs.length > 0
+      ? knowledgeBase.faqs.map((f: any, i: number) => `${i + 1}. [Category: ${f.category || 'General'}]\n   Q: ${f.question}\n   A: ${f.answer}`).join('\n\n')
+      : 'No custom FAQs listed.';
+
+    const contactsListText = Array.isArray(knowledgeBase.contacts) && knowledgeBase.contacts.length > 0
+      ? knowledgeBase.contacts.map((c: any) => `- ${c.label || c.type}: ${c.value}`).join('\n')
+      : `Phone: ${knowledgeBase.contactPhone || 'N/A'}, Email: ${knowledgeBase.contactEmail || 'N/A'}`;
+
+    // If API key is not configured, return polite response with fallback
     if (!apiKey) {
       return res.status(200).json({
         success: true,
-        answer: knowledgeBase.fallbackMessage || `I don't have that specific detail in our event guide right now. Please reach out to our event support team directly using the contact options below:`,
+        answer: knowledgeBase.fallbackMessage || `I don't have that specific detail in our event guide right now. Please reach out to our support team directly using the contact options below:`,
         requiresFallback: true,
         fallbackDetails: {
-          message: knowledgeBase.fallbackMessage || 'Please contact our event coordination desk.',
+          message: knowledgeBase.fallbackMessage || 'Please reach out to our event support team:',
+          contacts: knowledgeBase.contacts || [],
           contactPhone: knowledgeBase.contactPhone,
           contactEmail: knowledgeBase.contactEmail,
           whatsappLink: knowledgeBase.whatsappLink,
@@ -493,40 +507,52 @@ async function createServer() {
         },
       });
 
-      const faqsListText = Array.isArray(knowledgeBase.faqs) && knowledgeBase.faqs.length > 0
-        ? knowledgeBase.faqs.map((f: any, i: number) => `${i + 1}. [Category: ${f.category || 'General'}]\n   Question: ${f.question}\n   Answer: ${f.answer}`).join('\n\n')
-        : 'No custom FAQs provided.';
+      const systemInstruction = `You are the friendly, intelligent AI Event Concierge for "${knowledgeBase.eventTitle}".
+Your objective is to assist visitors in a warm, natural, highly conversational manner using strictly the event knowledge base context below.
 
-      const systemInstruction = `You are the official AI Event Help Desk Concierge for "${knowledgeBase.eventTitle}".
-Your sole objective is to provide accurate, warm, helpful responses to attendees based STRICTLY AND EXCLUSIVELY on the knowledge base provided below.
+CONVERSATIONAL & ACCURACY RULES:
+1. NATURAL GREETINGS & CASUAL CHAT: Respond warmly to greetings like "Hello", "Hi", "Good morning", "Thanks", or questions about who you are. DO NOT output [FALLBACK_REQUIRED] or dump contact details for simple greetings or polite banter.
+2. STRICT EVENT GROUNDING: When answering specific event questions (about schedule, venue, dress code, tickets, rules, catering, etc.), use ONLY facts explicitly stated in the knowledge base below. Never invent or guess dates, prices, parking fees, or details not written here.
+3. CONTEXT RECALL: Remember previous messages in the chat history. Maintain smooth conversation flow so users don't have to repeat themselves.
+4. UNANSWERABLE EVENT QUESTIONS: If the user asks a specific factual question about event details that is NOT documented anywhere in the knowledge base below, state politely that the requested detail isn't in the event guide right now, and include the exact tag "[FALLBACK_REQUIRED]" anywhere in your response so contact options appear.
 
-STRICT ACCURACY RULES:
-1. ONLY USE PROVIDED CONTEXT: Answer using ONLY the facts explicitly provided in the event knowledge base. Do NOT make up, guess, extrapolate, or invent details (such as ticket prices, unmentioned speakers, dress codes, refund policies, or parking fees) if they are not written in the context.
-2. UNANSWERABLE QUESTIONS: If the visitor's question cannot be answered completely from the knowledge base, state politely that the requested detail is not in the event guide, and include the exact keyword tag "[FALLBACK_REQUIRED]" anywhere in your response.
-3. CONVERSATIONAL TONE: Keep responses concise, clear, polite, and well-structured using markdown lists or bold headers when explaining steps or timetables.
-
-=== EVENT KNOWLEDGE BASE ===
+=== EVENT KNOWLEDGE BASE CONTEXT ===
 EVENT TITLE: ${knowledgeBase.eventTitle}
 OVERVIEW & ABOUT: ${knowledgeBase.overview || 'N/A'}
 VENUE & PARKING DIRECTIONS: ${knowledgeBase.venueDetails || 'N/A'}
 SCHEDULE & TIMETABLE: ${knowledgeBase.scheduleDetails || 'N/A'}
 DRESS CODE & WHAT TO BRING: ${knowledgeBase.dressCode || 'N/A'}
-ORGANIZER PHONE: ${knowledgeBase.contactPhone || 'N/A'}
-ORGANIZER EMAIL: ${knowledgeBase.contactEmail || 'N/A'}
-WHATSAPP: ${knowledgeBase.whatsappLink || 'N/A'}
 
-OFFICIAL EVENT FAQS:
+${sectionsText ? `ADDITIONAL KNOWLEDGE SECTIONS:\n${sectionsText}\n` : ''}
+FREQUENTLY ASKED QUESTIONS (FAQS):
 ${faqsListText}
-===========================`;
+
+CONFIGURED CONTACT CHANNELS:
+${contactsListText}
+===================================`;
+
+      // Build turn contents with history if available
+      const contents: any[] = [];
+      if (Array.isArray(chatHistory) && chatHistory.length > 0) {
+        // Take last 8 turns for efficiency and fast response speed
+        const recentHistory = chatHistory.slice(-8);
+        for (const msg of recentHistory) {
+          if (msg.text) {
+            contents.push({
+              role: msg.sender === 'user' ? 'user' : 'model',
+              parts: [{ text: msg.text }],
+            });
+          }
+        }
+      }
+      contents.push({
+        role: 'user',
+        parts: [{ text: userMessage.trim() }],
+      });
 
       const response = await ai.models.generateContent({
         model: 'gemini-3.8-flash',
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: userMessage.trim() }],
-          },
-        ],
+        contents,
         config: {
           systemInstruction,
           temperature: 0.2,
@@ -539,10 +565,11 @@ ${faqsListText}
 
       return res.status(200).json({
         success: true,
-        answer: cleanAnswer || (requiresFallback ? 'I don\'t have that specific detail in our event guide.' : 'How else can I help you regarding this event?'),
+        answer: cleanAnswer || (requiresFallback ? 'I don\'t have that specific detail in our event guide right now.' : 'How else can I help you regarding this event?'),
         requiresFallback,
         fallbackDetails: {
-          message: knowledgeBase.fallbackMessage || 'For further assistance, please contact our event coordination team below:',
+          message: knowledgeBase.fallbackMessage || 'For further assistance, our event support team is available via the contact options below:',
+          contacts: knowledgeBase.contacts || [],
           contactPhone: knowledgeBase.contactPhone,
           contactEmail: knowledgeBase.contactEmail,
           whatsappLink: knowledgeBase.whatsappLink,
@@ -554,10 +581,11 @@ ${faqsListText}
       console.error('Gemini API Helpdesk Error:', err);
       return res.status(200).json({
         success: true,
-        answer: knowledgeBase.fallbackMessage || 'I am unable to process that specific request right now. Please reach out to our event coordination team below:',
+        answer: knowledgeBase.fallbackMessage || 'I am unable to process that specific query right now. Please reach out to our event support team below:',
         requiresFallback: true,
         fallbackDetails: {
-          message: knowledgeBase.fallbackMessage || 'Please contact our event coordination team:',
+          message: knowledgeBase.fallbackMessage || 'Please reach out to our event support team:',
+          contacts: knowledgeBase.contacts || [],
           contactPhone: knowledgeBase.contactPhone,
           contactEmail: knowledgeBase.contactEmail,
           whatsappLink: knowledgeBase.whatsappLink,
@@ -567,6 +595,103 @@ ${faqsListText}
       });
     }
   });
+
+  // Bulk Knowledge Base Document Parser Endpoint (Gemini API)
+  app.post('/api/helpdesk/parse-kb', async (req, res) => {
+    const { rawText, eventTitle } = req.body;
+
+    if (!rawText || typeof rawText !== 'string' || !rawText.trim()) {
+      return res.status(400).json({ success: false, error: 'Raw text document content is required.' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Server Gemini API key is required to perform intelligent document parsing.',
+      });
+    }
+
+    try {
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+
+      const prompt = `Analyze and structure the following raw document text for the event "${eventTitle || 'Event'}".
+Extract and organize all information into clean JSON without inventing details or silently discarding facts.
+
+Return ONLY a valid JSON object matching this exact structure:
+{
+  "overview": "Summary or about the event",
+  "venueDetails": "Location, address, hall, directions, parking",
+  "scheduleDetails": "Dates, timetable, session breakdown, door opening times",
+  "dressCode": "Dress code guidelines or items to bring",
+  "sections": [
+    {
+      "title": "Section Name (e.g. Registration Guidelines, Keynote Speakers, Workshop Tracks)",
+      "content": "Detailed text content for this section"
+    }
+  ],
+  "faqs": [
+    {
+      "question": "Question text",
+      "answer": "Factual answer extracted from the document",
+      "category": "General | Venue | Schedule | Registration | Dietary | Other"
+    }
+  ],
+  "contacts": [
+    {
+      "type": "phone | whatsapp | email | social | website | other",
+      "label": "Contact Channel Label (e.g. Help Desk Phone, Support Email)",
+      "value": "The actual phone, email, or URL string"
+    }
+  ]
+}
+
+DOCUMENT TEXT:
+${rawText.trim()}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          temperature: 0.1,
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const responseText = response.text || '{}';
+      let parsedData: any = {};
+      try {
+        parsedData = JSON.parse(responseText);
+      } catch (pErr) {
+        console.warn('JSON parse fallback for parse-kb:', pErr);
+        parsedData = {
+          overview: rawText.substring(0, 500),
+          sections: [{ title: 'Imported Overview', content: rawText }],
+          faqs: [],
+          contacts: [],
+        };
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: parsedData,
+      });
+    } catch (err: any) {
+      console.error('Gemini KB Parsing Error:', err);
+      return res.status(500).json({
+        success: false,
+        error: err?.message || 'Failed to analyze and structure pasted knowledge base document.',
+      });
+    }
+  });
+
 
   // === MOUNT VITE / STATIC MIDDLEWARE AFTER API ROUTES ===
 
