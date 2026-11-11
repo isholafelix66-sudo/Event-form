@@ -237,6 +237,7 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
           const updatedWithAi = [...updatedWithUser, aiMsg];
           setMessages(updatedWithAi);
           saveMessagesToDevice(updatedWithAi);
+          dbService.recordHelpDeskInteraction(kb.eventId, false, userText, data.answer);
           return;
         }
       }
@@ -254,6 +255,7 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
       const updatedWithLocal = [...updatedWithUser, localAiMsg];
       setMessages(updatedWithLocal);
       saveMessagesToDevice(updatedWithLocal);
+      dbService.recordHelpDeskInteraction(kb.eventId, false, userText, localResult.answer);
     } catch (err) {
       // Complete network resilience for static hosting environments like Vercel
       const localResult = answerFromKnowledgeBaseUniversal(userText, kb);
@@ -268,8 +270,8 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
       const updatedWithResilient = [...updatedWithUser, networkFallbackMsg];
       setMessages(updatedWithResilient);
       saveMessagesToDevice(updatedWithResilient);
+      dbService.recordHelpDeskInteraction(kb.eventId, false, userText, localResult.answer);
     } finally {
-      dbService.recordHelpDeskInteraction(kb.eventId, false);
       setIsSending(false);
     }
   };
