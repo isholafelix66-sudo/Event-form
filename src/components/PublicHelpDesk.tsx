@@ -87,7 +87,7 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
               {
                 id: 'welcome-msg',
                 sender: 'assistant',
-                text: `Hello! Welcome to the official **${fetchedKb.eventTitle}** Help Desk. 👋\n\nI'm your 24/7 Event Assistant. I can help answer questions about the event venue, schedule, dress code, directions, and guidelines. How can I assist you today?`,
+                text: `Hello! Welcome to the official **${fetchedKb.eventTitle}** Help Desk. 👋\n\nI'm your 24/7 Event Concierge. I can help answer questions about the venue, schedule, dress code, directions, and guidelines. How can I assist you today?`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               },
             ];
@@ -313,34 +313,34 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
       ];
 
   return (
-    <div className="h-dvh max-w-full w-full bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-hidden select-none">
+    <div className="fixed inset-0 h-[100dvh] w-full bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-hidden select-none max-w-full">
       {/* Subtle Background Glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-indigo-600/15 rounded-full blur-[120px] pointer-events-none" />
 
       {/* Header Bar */}
-      <header className="shrink-0 z-20 backdrop-blur-xl bg-slate-900/90 border-b border-slate-800/80 px-4 py-3 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="shrink-0 z-20 backdrop-blur-xl bg-slate-900/95 border-b border-slate-800/80 px-3 sm:px-4 py-3 flex items-center justify-between shadow-md">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <div className="relative shrink-0">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/30">
-              <Sparkles className="w-5 h-5 animate-pulse" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/30">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
             </div>
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
           </div>
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="font-bold text-base sm:text-lg text-white truncate max-w-[200px] sm:max-w-md leading-tight">
+              <h1 className="font-bold text-sm sm:text-lg text-white truncate max-w-[170px] sm:max-w-md leading-tight">
                 {kb.eventTitle}
               </h1>
             </div>
-            <p className="text-[11px] text-slate-400 flex items-center gap-1 font-medium mt-0.5">
+            <p className="text-[10px] sm:text-[11px] text-slate-400 flex items-center gap-1 font-medium mt-0.5">
               <ShieldCheck className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-              <span>Official Event AI Assistant</span>
+              <span>Official Event Concierge</span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             onClick={handleClearDeviceChat}
             className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95"
@@ -361,11 +361,11 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
 
       </header>
 
-      {/* Scrollable Message Feed */}
+      {/* Scrollable Message Feed (Mobile Vertical Scroll Optimized) */}
       <div
         ref={chatContainerRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4 max-w-3xl w-full mx-auto relative scrollbar-none touch-pan-y"
+        className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-4 space-y-3.5 max-w-3xl w-full mx-auto relative scrollbar-none touch-pan-y overscroll-contain"
       >
         {messages.map((msg) => {
           const isUser = msg.sender === 'user';
@@ -376,8 +376,8 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
             >
               <div className="flex items-end gap-2.5 max-w-[88%] sm:max-w-[78%]">
                 {!isUser && (
-                  <div className="w-7 h-7 rounded-xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 flex items-center justify-center shrink-0 text-[11px] font-black mb-1">
-                    AI
+                  <div className="w-7 h-7 rounded-xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 flex items-center justify-center shrink-0 text-[10px] font-black mb-1" title="Event Concierge">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
                   </div>
                 )}
 
@@ -439,8 +439,8 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
         {/* Animated Typing Indicator */}
         {isSending && (
           <div className="flex items-center gap-2.5 text-slate-400 text-xs">
-            <div className="w-7 h-7 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 flex items-center justify-center shrink-0 text-[11px] font-bold">
-              AI
+            <div className="w-7 h-7 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 flex items-center justify-center shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
             </div>
             <div className="bg-slate-900 border border-slate-800 rounded-2xl rounded-bl-xs px-4 py-3 flex items-center gap-1.5 shadow-sm">
               <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]" />

@@ -1298,85 +1298,211 @@ class DatabaseService {
     if (!kb) {
       const form = await this.getFormBySlug(eventIdOrSlug);
       if (form) {
-        kb = {
-          eventId: form.id,
-          eventSlug: form.slug,
-          eventTitle: form.title,
-          overview: form.description || `${form.title} official event portal and help desk.`,
-          venueDetails: form.eventLocation || 'Venue details will be communicated upon registration.',
-          scheduleDetails: form.eventDate ? `Date & Time: ${new Date(form.eventDate).toLocaleString()}` : 'Schedule to be announced.',
-          dressCode: 'Smart Casual / Formal Modest Attire',
-          contactPhone: '+44 7911 123456',
-          contactEmail: form.ownerEmail || 'helpdesk@eventform.io',
-          whatsappLink: 'https://wa.me/447911123456',
-          socialLink: '',
-          fallbackMessage: `I don't have that specific detail in our event guide right now, but our support team will be happy to assist you. You can reach us through any of the contact options below:`,
-          fallbackLink: '',
-          sections: [
-            {
-              id: 'sec-overview',
-              title: 'Event Overview',
-              content: form.description || `${form.title} official event portal and help desk.`,
-              order: 1,
-            },
-            {
-              id: 'sec-venue',
-              title: 'Venue & Location',
-              content: form.eventLocation || 'Venue details will be shared with registered delegates.',
-              order: 2,
-            },
-            {
-              id: 'sec-schedule',
-              title: 'Schedule & Timing',
-              content: form.eventDate ? `Event Date: ${new Date(form.eventDate).toLocaleString()}` : 'Schedule details to be announced.',
-              order: 3,
-            },
-          ],
-          contacts: [
-            {
-              id: 'cnt-phone',
-              type: 'phone',
-              label: 'Phone Support Desk',
-              value: '+44 7911 123456',
-              link: 'tel:+447911123456',
-            },
-            {
-              id: 'cnt-whatsapp',
-              type: 'whatsapp',
-              label: 'WhatsApp Concierge',
-              value: '+44 7911 123456',
-              link: 'https://wa.me/447911123456',
-            },
-            {
-              id: 'cnt-email',
-              type: 'email',
-              label: 'Organizer Email',
-              value: form.ownerEmail || 'helpdesk@eventform.io',
-              link: `mailto:${form.ownerEmail || 'helpdesk@eventform.io'}`,
-            },
-          ],
-          faqs: [
-            {
-              id: 'faq-1',
-              question: `What time does ${form.title} start?`,
-              answer: form.eventDate ? `Doors open prior to ${new Date(form.eventDate).toLocaleString()}. Please arrive 15 minutes early for check-in.` : 'Please check your registration email for exact timing.',
-              category: 'Schedule',
-            },
-            {
-              id: 'faq-2',
-              question: `Where is the venue located?`,
-              answer: form.eventLocation ? `The event will take place at: ${form.eventLocation}` : 'Location details will be shared with registered delegates.',
-              category: 'Venue',
-            },
-            {
-              id: 'faq-3',
-              question: `How do I receive my registration pass?`,
-              answer: 'Your digital QR registration pass is automatically sent to your registered email address right after completing the registration form.',
-              category: 'Registration',
-            },
-          ],
-          updatedAt: new Date().toISOString(),
-        };
+        const isWorshipEncounter = /worship\s*encounter/i.test(form.title) || /worship-encounter/i.test(form.slug);
+
+        if (isWorshipEncounter) {
+          kb = {
+            eventId: form.id,
+            eventSlug: form.slug,
+            eventTitle: 'Worship Encounter 3.0',
+            overview: 'Theme: WORSHIP CULTURE (The Way of Life)\nOrganiser: Baptist Student Fellowship (BSF), Ijeru Baptist Church, Ogbomoso.\nDate: 13th – 14th November, 2026.\nTime: 10:00 PM.\nVenue: Ijeru Baptist Church, Ogbomoso, Oyo State, Nigeria.\nProgramme Type: Night programme.\nRegistration Fee: FREE (FREE BUT COMPULSORY).',
+            venueDetails: 'Ijeru Baptist Church, Arubiewe Street, Ijeru, Ogbomoso, Oyo State, Nigeria.\nGoogle Maps Plus Code: 46FV+6G5.\nGoogle Maps Location: https://www.google.com/maps/search/?api=1&query=Ijeru+Baptist+Church+Ogbomoso\nDirections: Accessible from Abede axis towards Oja-Ijeru. Landmark is Arubiewe Street near Ijeru central area.',
+            scheduleDetails: 'Date: 13th – 14th November, 2026.\nStart Time: 10:00 PM (Night programme). Doors open early for delegate check-in.',
+            dressCode: 'Modest and respectful Christian worship attire suitable for an overnight prayer and praise encounter.',
+            contactPhone: '+234 812 345 6789',
+            contactEmail: 'bsfijerubc@gmail.com',
+            whatsappLink: 'https://wa.me/2348123456789',
+            socialLink: '',
+            fallbackMessage: `I don't have that specific detail in our event guide right now, but our support team will be happy to assist you. You can reach us through any of the contact options below:`,
+            fallbackLink: '',
+            sections: [
+              {
+                id: 'sec-theme',
+                title: 'About The Theme: Worship Culture',
+                content: 'Worship Culture is about making worship a lifestyle rather than something we do only during church services. It means living every day in a way that honours, glorifies, and reflects God.\nWorship goes beyond singing, dancing, or lifting our hands. It is expressed through our obedience, character, choices, attitude, service, and relationship with God. The central message is that worship is not just an event or an activity; it is a way of life.',
+                order: 1,
+              },
+              {
+                id: 'sec-venue',
+                title: 'Venue & Directions',
+                content: 'Venue: Ijeru Baptist Church, Arubiewe Street, Ijeru, Ogbomoso, Oyo State, Nigeria.\nPlus Code: 46FV+6G5.\nNavigating: Use Google Maps with Plus Code 46FV+6G5 for direct turn-by-turn guidance. Free parking is available around the church premises.',
+                order: 2,
+              },
+              {
+                id: 'sec-reg',
+                title: 'Registration & Entry Policy',
+                content: 'Registration Fee: 100% FREE.\nRequirement: Registration is compulsory for all attendees to facilitate security, seat allocation, and digital pass generation.',
+                order: 3,
+              },
+            ],
+            contacts: [
+              {
+                id: 'cnt-phone',
+                type: 'phone',
+                label: 'BSF Help Desk Line',
+                value: '+234 812 345 6789',
+                link: 'tel:+2348123456789',
+              },
+              {
+                id: 'cnt-whatsapp',
+                type: 'whatsapp',
+                label: 'WhatsApp Desk',
+                value: '+234 812 345 6789',
+                link: 'https://wa.me/2348123456789',
+              },
+              {
+                id: 'cnt-email',
+                type: 'email',
+                label: 'Organizer Email',
+                value: 'bsfijerubc@gmail.com',
+                link: 'mailto:bsfijerubc@gmail.com',
+              },
+            ],
+            faqs: [
+              {
+                id: 'faq-theme-1',
+                question: 'What is the theme of Worship Encounter 3.0?',
+                answer: 'The theme is WORSHIP CULTURE (The Way of Life).',
+                category: 'General',
+              },
+              {
+                id: 'faq-theme-2',
+                question: 'What does Worship Culture mean?',
+                answer: 'Worship Culture is about making worship a lifestyle rather than something we do only during church services. It means living every day in a way that honours, glorifies and reflects God. Worship goes beyond singing, dancing or lifting our hands—it is expressed through our obedience, character, choices, attitude, service and relationship with God.',
+                category: 'General',
+              },
+              {
+                id: 'faq-theme-3',
+                question: 'Is worship only about singing?',
+                answer: 'No. Singing is one expression of worship, but true worship also involves obedience to God, living by His Word, serving Him and honouring Him in our daily lives.',
+                category: 'General',
+              },
+              {
+                id: 'faq-when-1',
+                question: 'When is Worship Encounter 3.0?',
+                answer: 'It holds from 13th to 14th November, 2026. The programme starts at 10:00 PM (Night programme).',
+                category: 'Schedule',
+              },
+              {
+                id: 'faq-when-2',
+                question: 'What time does it start?',
+                answer: 'The programme starts at 10:00 PM on 13th November, 2026.',
+                category: 'Schedule',
+              },
+              {
+                id: 'faq-when-3',
+                question: 'Is it a night programme?',
+                answer: 'Yes. Worship Encounter 3.0 is an overnight night programme starting at 10:00 PM.',
+                category: 'Schedule',
+              },
+              {
+                id: 'faq-venue-1',
+                question: 'Where is Worship Encounter 3.0 holding?',
+                answer: 'It will hold at Ijeru Baptist Church, Arubiewe Street, Ijeru, Ogbomoso, Oyo State, Nigeria. Plus Code: 46FV+6G5.',
+                category: 'Venue',
+              },
+              {
+                id: 'faq-venue-2',
+                question: 'How can I locate the church?',
+                answer: 'You can use Google Maps to navigate directly to Ijeru Baptist Church, Ogbomoso using the Plus Code 46FV+6G5. It is situated on Arubiewe Street, Ijeru, Ogbomoso.',
+                category: 'Venue',
+              },
+              {
+                id: 'faq-reg-1',
+                question: 'How much is registration for Worship Encounter 3.0?',
+                answer: 'Registration is 100% FREE. However, registration is compulsory so that security and seating arrangements can be coordinated.',
+                category: 'Registration',
+              },
+              {
+                id: 'faq-org-1',
+                question: 'Who is the organiser of Worship Encounter 3.0?',
+                answer: 'Worship Encounter 3.0 is organised by the Baptist Student Fellowship (BSF), Ijeru Baptist Church, Ogbomoso.',
+                category: 'General',
+              },
+            ],
+            updatedAt: new Date().toISOString(),
+          };
+        } else {
+          kb = {
+            eventId: form.id,
+            eventSlug: form.slug,
+            eventTitle: form.title,
+            overview: form.description || `${form.title} official event portal and help desk.`,
+            venueDetails: form.eventLocation || 'Venue details will be communicated upon registration.',
+            scheduleDetails: form.eventDate ? `Date & Time: ${new Date(form.eventDate).toLocaleString()}` : 'Schedule to be announced.',
+            dressCode: 'Smart Casual / Formal Modest Attire',
+            contactPhone: '+44 7911 123456',
+            contactEmail: form.ownerEmail || 'helpdesk@eventform.io',
+            whatsappLink: 'https://wa.me/447911123456',
+            socialLink: '',
+            fallbackMessage: `I don't have that specific detail in our event guide right now, but our support team will be happy to assist you. You can reach us through any of the contact options below:`,
+            fallbackLink: '',
+            sections: [
+              {
+                id: 'sec-overview',
+                title: 'Event Overview',
+                content: form.description || `${form.title} official event portal and help desk.`,
+                order: 1,
+              },
+              {
+                id: 'sec-venue',
+                title: 'Venue & Location',
+                content: form.eventLocation || 'Venue details will be shared with registered delegates.',
+                order: 2,
+              },
+              {
+                id: 'sec-schedule',
+                title: 'Schedule & Timing',
+                content: form.eventDate ? `Event Date: ${new Date(form.eventDate).toLocaleString()}` : 'Schedule details to be announced.',
+                order: 3,
+              },
+            ],
+            contacts: [
+              {
+                id: 'cnt-phone',
+                type: 'phone',
+                label: 'Phone Support Desk',
+                value: '+44 7911 123456',
+                link: 'tel:+447911123456',
+              },
+              {
+                id: 'cnt-whatsapp',
+                type: 'whatsapp',
+                label: 'WhatsApp Concierge',
+                value: '+44 7911 123456',
+                link: 'https://wa.me/447911123456',
+              },
+              {
+                id: 'cnt-email',
+                type: 'email',
+                label: 'Organizer Email',
+                value: form.ownerEmail || 'helpdesk@eventform.io',
+                link: `mailto:${form.ownerEmail || 'helpdesk@eventform.io'}`,
+              },
+            ],
+            faqs: [
+              {
+                id: 'faq-1',
+                question: `What time does ${form.title} start?`,
+                answer: form.eventDate ? `Doors open prior to ${new Date(form.eventDate).toLocaleString()}. Please arrive 15 minutes early for check-in.` : 'Please check your registration email for exact timing.',
+                category: 'Schedule',
+              },
+              {
+                id: 'faq-2',
+                question: `Where is the venue located?`,
+                answer: form.eventLocation ? `The event will take place at: ${form.eventLocation}` : 'Location details will be shared with registered delegates.',
+                category: 'Venue',
+              },
+              {
+                id: 'faq-3',
+                question: `How do I receive my registration pass?`,
+                answer: 'Your digital QR registration pass is automatically sent to your registered email address right after completing the registration form.',
+                category: 'Registration',
+              },
+            ],
+            updatedAt: new Date().toISOString(),
+          };
+        }
         await this.saveKnowledgeBase(kb);
       }
     }
