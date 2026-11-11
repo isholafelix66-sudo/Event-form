@@ -12,6 +12,8 @@ import { EmailCentre } from './components/EmailCentre';
 import { SettingsView } from './components/SettingsView';
 import { PublicForm } from './components/PublicForm';
 import { RegistrationPortal } from './components/RegistrationPortal';
+import { PublicHelpDesk } from './components/PublicHelpDesk';
+import { HelpDeskAdmin } from './components/HelpDeskAdmin';
 import { NotFoundPage } from './components/NotFoundPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -24,7 +26,21 @@ import {
 function AppContent() {
   const { showToast } = useToast();
   const [currentTab, setCurrentTab] = useState<string>('overview');
+  const [publicHelpDeskSlug, setPublicHelpDeskSlug] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const rawHash = window.location.hash;
+    const rawPath = window.location.pathname;
+    if (rawHash.startsWith('#helpdesk=')) {
+      return rawHash.replace('#helpdesk=', '').trim().split('&')[0].split('?')[0] || null;
+    }
+    if (rawPath.startsWith('/helpdesk/')) {
+      return rawPath.replace('/helpdesk/', '').trim().split('/')[0].split('?')[0] || null;
+    }
+    return null;
+  });
+
   const [publicFormSlug, setPublicFormSlug] = useState<string | null>(() => {
+
     if (typeof window === 'undefined') return null;
     const rawHash = window.location.hash;
     const rawPath = window.location.pathname;
@@ -82,6 +98,23 @@ function AppContent() {
 
     // Reset default flags
     setIsNotFound(false);
+
+    // 0. Direct Public Help Desk Link (e.g. #helpdesk=worship-encounter-3 or /helpdesk/worship-encounter-3)
+    if (rawHash.startsWith('#helpdesk=')) {
+      const slug = rawHash.replace('#helpdesk=', '').trim().split('&')[0].split('?')[0];
+      if (slug) {
+        setPublicHelpDeskSlug(slug);
+        return;
+      }
+    }
+    if (rawPath.startsWith('/helpdesk/')) {
+      const slug = rawPath.replace('/helpdesk/', '').trim().split('/')[0].split('?')[0];
+      if (slug) {
+        setPublicHelpDeskSlug(slug);
+        return;
+      }
+    }
+    setPublicHelpDeskSlug(null);
 
     // 1. Direct Public Form Link (e.g. #f=worship-encounter-3&parent=EVT-2026-W301 or /f/worship-encounter-3?parent=EVT-2026-W301)
     if (rawHash.startsWith('#f=')) {
@@ -157,16 +190,17 @@ function AppContent() {
       return;
     }
 
-    // 5. Admin Dashboard Route: ONLY /admin or #admin or active admin tabs (e.g. #overview, #settings, #email, #responses)
+    // 5. Admin Dashboard Route: ONLY /admin or #admin or active admin tabs (e.g. #overview, #settings, #helpdesk, #email, #responses)
     const isAdminPathOrHash =
       path === '/admin' ||
       hash === '#admin' ||
       hash.startsWith('#admin') ||
       (rawPath === '/' &&
-        (['#overview', '#forms', '#responses', '#bulk', '#checkin', '#email', '#settings'].includes(hash) ||
+        (['#overview', '#forms', '#responses', '#bulk', '#checkin', '#helpdesk', '#email', '#settings'].includes(hash) ||
           hash.startsWith('#email') ||
           hash.startsWith('#forms') ||
-          hash.startsWith('#responses')));
+          hash.startsWith('#responses') ||
+          hash.startsWith('#helpdesk')));
 
     if (isAdminPathOrHash) {
       if (!isAdminSessionUnlocked()) {
@@ -174,6 +208,7 @@ function AppContent() {
       } else {
         setCurrentRole('super_admin');
         if (hash === '#settings') setCurrentTab('settings');
+        else if (hash === '#helpdesk') setCurrentTab('helpdesk');
         else if (hash === '#email' || hash.startsWith('#email')) setCurrentTab('email');
         else if (hash === '#responses' || hash.startsWith('#responses')) setCurrentTab('responses');
         else if (hash === '#forms' || hash.startsWith('#forms')) setCurrentTab('forms');
@@ -183,6 +218,7 @@ function AppContent() {
       }
       return;
     }
+
 
     // 6. Base Root "/" or Unrecognized Path -> Render 404 Invalid Page Screen
     // Accessing "/" without an event identifier or removing event identifier MUST NEVER expose admin dashboard.
@@ -298,6 +334,11 @@ function AppContent() {
     handleRoleChange(role as UserRole);
   };
 
+  // 0. PUBLIC HELP DESK VIEW: Render dedicated public AI chat interface in complete isolation
+  if (publicHelpDeskSlug) {
+    return <PublicHelpDesk slugOrId={publicHelpDeskSlug} />;
+  }
+
   // 1. PUBLIC FORM VIEW: Render public event registration page
   if (publicFormSlug) {
     return <PublicForm slugOrId={publicFormSlug} parentCode={parentCode} />;
@@ -347,7 +388,7 @@ function AppContent() {
       <Navbar
         activeTab={currentTab}
         onTabChange={(tab) => {
-          const adminOnlyTabs = ['overview', 'builder', 'email', 'settings'];
+          const adminOnlyTabs = ['overview', 'builder', 'email', 'settings', 'helpdesk'];
           if (adminOnlyTabs.includes(tab) && !isAdminSessionUnlocked()) {
             window.location.hash = 'admin';
             setShowAdminLockModal(true);
@@ -359,6 +400,7 @@ function AppContent() {
           setCurrentTab(tab);
           window.location.hash = tab === 'overview' ? 'admin' : tab;
         }}
+
         currentRole={currentRole}
         onRoleChange={handleRoleChange}
         userEmail={currentUserEmail}
@@ -477,12 +519,22 @@ function AppContent() {
                 <CheckInScanner currentOfficerName="Admin Officer" />
               )}
 
+              {currentTab === 'helpdesk' && (
+                <HelpDeskAdmin
+                  onOpenPublicHelpDesk={(slug) => {
+                    window.location.hash = `helpdesk=${slug}`;
+                    setPublicHelpDeskSlug(slug);
+                  }}
+                />
+              )}
+
               {currentTab === 'email' && (
                 <EmailCentre
                   initialFormId={emailInitialFormId}
                   initialTemplate={emailInitialTemplate}
                 />
               )}
+
 
               {currentTab === 'settings' && (
                 <SettingsView

@@ -11,6 +11,7 @@ import {
   UserCheck,
   Mail,
   Settings,
+  HelpCircle,
 } from 'lucide-react';
 
 export interface NavTabItem {
@@ -53,7 +54,7 @@ export const AnimatedBottomNav: React.FC<AnimatedBottomNavProps> = ({
       { id: 'responses', label: 'Responses', icon: Users },
     ];
   } else {
-    // Admin / Super Admin - ALL 8 modules directly accessible in one mobile bar
+    // Admin / Super Admin - ALL modules directly accessible in one mobile bar
     items = [
       { id: 'overview', label: 'Overview', icon: Sparkles },
       { id: 'forms', label: 'My Forms', icon: Layers },
@@ -61,10 +62,12 @@ export const AnimatedBottomNav: React.FC<AnimatedBottomNavProps> = ({
       { id: 'responses', label: 'Responses', icon: Users },
       { id: 'checkin', label: 'Check-In Desk', icon: QrCode },
       { id: 'bulk', label: 'Bulk Reg', icon: UserCheck },
+      { id: 'helpdesk', label: 'AI Help Desk', icon: HelpCircle },
       { id: 'email', label: 'Email Centre', icon: Mail },
       { id: 'settings', label: 'Settings', icon: Settings },
     ];
   }
+
 
   // Scroll active tab into view when activeTab changes
   useEffect(() => {

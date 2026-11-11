@@ -19,7 +19,8 @@ import {
   X,
   Lock,
   Unlock,
-  ShieldAlert
+  ShieldAlert,
+  HelpCircle,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -59,9 +60,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'responses', label: 'Responses', icon: Users, roles: ['super_admin', 'admin', 'event_officer', 'agent'] },
     { id: 'bulk', label: 'Bulk Reg', icon: UserCheck, roles: ['super_admin', 'admin', 'agent'] },
     { id: 'checkin', label: 'Check-In', icon: QrCode, roles: ['super_admin', 'admin', 'checkin_officer'] },
+    { id: 'helpdesk', label: 'AI Help Desk', icon: HelpCircle, roles: ['super_admin', 'admin'] },
     { id: 'email', label: 'Email Centre', icon: Mail, roles: ['super_admin', 'admin'] },
     { id: 'settings', label: 'Settings', icon: Settings, roles: ['super_admin', 'admin'] },
   ];
+
 
   // Restrict navigation items strictly to current role permissions
   const availableNavItems = allNavItems.filter((item) =>

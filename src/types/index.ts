@@ -122,3 +122,29 @@ export interface ToastMessage {
   message: string;
 }
 
+export interface KnowledgeBaseFAQ {
+  id: string;
+  question: string;
+  answer: string;
+  category?: string;
+}
+
+export interface EventKnowledgeBase {
+  eventId: string; // formId or form slug
+  eventSlug: string;
+  eventTitle: string;
+  overview?: string;
+  venueDetails?: string;
+  scheduleDetails?: string;
+  dressCode?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  whatsappLink?: string;
+  socialLink?: string;
+  fallbackMessage?: string;
+  fallbackLink?: string;
+  faqs: KnowledgeBaseFAQ[];
+  updatedAt: string;
+}
+
+

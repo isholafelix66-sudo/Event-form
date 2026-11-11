@@ -9,7 +9,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { EventForm, FormResponse, EmailLog, SMTPSettings, SiteSettings, FormStatus } from '../types';
+import { EventForm, FormResponse, EmailLog, SMTPSettings, SiteSettings, FormStatus, EventKnowledgeBase } from '../types';
 
 const LOCAL_FORMS_KEY = 'eventform_local_forms';
 const LOCAL_RESPONSES_KEY = 'eventform_local_responses';
@@ -17,6 +17,8 @@ const LOCAL_EMAIL_LOGS_KEY = 'eventform_local_email_logs';
 const LOCAL_SMTP_KEY = 'eventform_local_smtp_settings';
 const LOCAL_SITE_SETTINGS_KEY = 'eventform_local_site_settings';
 const LOCAL_SUBMISSION_QUEUE_KEY = 'eventform_submission_queue';
+const LOCAL_KNOWLEDGE_BASES_KEY = 'eventform_local_knowledge_bases';
+
 
 export interface QueuedSubmission {
   id: string;
@@ -1262,6 +1264,108 @@ class DatabaseService {
       };
     }
   }
+
+  // Knowledge Base Management per Event
+  async getKnowledgeBase(eventIdOrSlug: string): Promise<EventKnowledgeBase | null> {
+    if (!eventIdOrSlug) return null;
+
+    // 1. Check local storage
+    try {
+      const stored = localStorage.getItem(LOCAL_KNOWLEDGE_BASES_KEY);
+      if (stored) {
+        const kbMap: Record<string, EventKnowledgeBase> = JSON.parse(stored);
+        if (kbMap[eventIdOrSlug]) return kbMap[eventIdOrSlug];
+        const found = Object.values(kbMap).find((k) => k.eventId === eventIdOrSlug || k.eventSlug === eventIdOrSlug);
+        if (found) return found;
+      }
+    } catch (e) {}
+
+    // 2. Check Firestore
+    try {
+      const docSnap = await getDoc(doc(db, 'knowledge_bases', eventIdOrSlug));
+      if (docSnap.exists()) {
+        const kb = docSnap.data() as EventKnowledgeBase;
+        this.saveKbToLocal(kb);
+        return kb;
+      }
+    } catch (e) {}
+
+    // 3. Fall back to finding matching form and creating a default knowledge base
+    const form = await this.getFormBySlug(eventIdOrSlug);
+    if (form) {
+      const defaultKb: EventKnowledgeBase = {
+        eventId: form.id,
+        eventSlug: form.slug,
+        eventTitle: form.title,
+        overview: form.description || `${form.title} official event portal and help desk.`,
+        venueDetails: form.eventLocation || 'Venue details will be communicated upon registration.',
+        scheduleDetails: form.eventDate ? `Date & Time: ${new Date(form.eventDate).toLocaleString()}` : 'Schedule to be announced.',
+        dressCode: 'Smart Casual / Formal Modest Attire',
+        contactPhone: '+44 7911 123456',
+        contactEmail: form.ownerEmail || 'helpdesk@eventform.io',
+        whatsappLink: 'https://wa.me/447911123456',
+        socialLink: '',
+        fallbackMessage: `I don't have that specific detail in our event guide right now. Please reach out to our event coordination team directly using the contact details below:`,
+        fallbackLink: '',
+        faqs: [
+          {
+            id: 'faq-1',
+            question: `What time does ${form.title} start?`,
+            answer: form.eventDate ? `Doors open prior to ${new Date(form.eventDate).toLocaleString()}. Please arrive 15 minutes early for check-in.` : 'Please check your registration email for exact timing.',
+            category: 'Schedule',
+          },
+          {
+            id: 'faq-2',
+            question: `Where is the venue located?`,
+            answer: form.eventLocation ? `The event will take place at: ${form.eventLocation}` : 'Location details will be shared with registered delegates.',
+            category: 'Venue',
+          },
+          {
+            id: 'faq-3',
+            question: `How do I receive my registration pass?`,
+            answer: 'Your digital QR registration pass is automatically sent to your registered email address right after completing the registration form.',
+            category: 'Registration',
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      };
+      await this.saveKnowledgeBase(defaultKb);
+      return defaultKb;
+    }
+
+    return null;
+  }
+
+  private saveKbToLocal(kb: EventKnowledgeBase) {
+    try {
+      const stored = localStorage.getItem(LOCAL_KNOWLEDGE_BASES_KEY);
+      const kbMap: Record<string, EventKnowledgeBase> = stored ? JSON.parse(stored) : {};
+      kbMap[kb.eventId] = kb;
+      if (kb.eventSlug) kbMap[kb.eventSlug] = kb;
+      localStorage.setItem(LOCAL_KNOWLEDGE_BASES_KEY, JSON.stringify(kbMap));
+    } catch (e) {}
+  }
+
+  async saveKnowledgeBase(kb: EventKnowledgeBase): Promise<EventKnowledgeBase> {
+    const updatedKb: EventKnowledgeBase = {
+      ...kb,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.saveKbToLocal(updatedKb);
+
+    try {
+      await setDoc(doc(db, 'knowledge_bases', updatedKb.eventId), cleanForFirestore(updatedKb));
+      if (updatedKb.eventSlug && updatedKb.eventSlug !== updatedKb.eventId) {
+        await setDoc(doc(db, 'knowledge_bases', updatedKb.eventSlug), cleanForFirestore(updatedKb));
+      }
+    } catch (e) {
+      console.warn('Firestore saveKnowledgeBase notice:', e);
+    }
+
+    return updatedKb;
+  }
 }
+
 
 export const dbService = new DatabaseService();

@@ -5,6 +5,8 @@ import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { GoogleGenAI } from '@google/genai';
+
 
 dotenv.config();
 
@@ -450,7 +452,124 @@ async function createServer() {
     }
   });
 
+  // Private-Link Event Help Desk AI Endpoint (Gemini API)
+  app.post('/api/helpdesk/chat', async (req, res) => {
+    const { userMessage, knowledgeBase } = req.body;
+
+    if (!userMessage || typeof userMessage !== 'string' || !userMessage.trim()) {
+      return res.status(400).json({ success: false, error: 'User message is required.' });
+    }
+
+    if (!knowledgeBase || !knowledgeBase.eventTitle) {
+      return res.status(400).json({ success: false, error: 'Knowledge base context is required.' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || '';
+
+    // If API key is not configured, return polite fallback response
+    if (!apiKey) {
+      return res.status(200).json({
+        success: true,
+        answer: knowledgeBase.fallbackMessage || `I don't have that specific detail in our event guide right now. Please reach out to our event support team directly using the contact options below:`,
+        requiresFallback: true,
+        fallbackDetails: {
+          message: knowledgeBase.fallbackMessage || 'Please contact our event coordination desk.',
+          contactPhone: knowledgeBase.contactPhone,
+          contactEmail: knowledgeBase.contactEmail,
+          whatsappLink: knowledgeBase.whatsappLink,
+          socialLink: knowledgeBase.socialLink,
+          fallbackLink: knowledgeBase.fallbackLink,
+        },
+      });
+    }
+
+    try {
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+
+      const faqsListText = Array.isArray(knowledgeBase.faqs) && knowledgeBase.faqs.length > 0
+        ? knowledgeBase.faqs.map((f: any, i: number) => `${i + 1}. [Category: ${f.category || 'General'}]\n   Question: ${f.question}\n   Answer: ${f.answer}`).join('\n\n')
+        : 'No custom FAQs provided.';
+
+      const systemInstruction = `You are the official AI Event Help Desk Concierge for "${knowledgeBase.eventTitle}".
+Your sole objective is to provide accurate, warm, helpful responses to attendees based STRICTLY AND EXCLUSIVELY on the knowledge base provided below.
+
+STRICT ACCURACY RULES:
+1. ONLY USE PROVIDED CONTEXT: Answer using ONLY the facts explicitly provided in the event knowledge base. Do NOT make up, guess, extrapolate, or invent details (such as ticket prices, unmentioned speakers, dress codes, refund policies, or parking fees) if they are not written in the context.
+2. UNANSWERABLE QUESTIONS: If the visitor's question cannot be answered completely from the knowledge base, state politely that the requested detail is not in the event guide, and include the exact keyword tag "[FALLBACK_REQUIRED]" anywhere in your response.
+3. CONVERSATIONAL TONE: Keep responses concise, clear, polite, and well-structured using markdown lists or bold headers when explaining steps or timetables.
+
+=== EVENT KNOWLEDGE BASE ===
+EVENT TITLE: ${knowledgeBase.eventTitle}
+OVERVIEW & ABOUT: ${knowledgeBase.overview || 'N/A'}
+VENUE & PARKING DIRECTIONS: ${knowledgeBase.venueDetails || 'N/A'}
+SCHEDULE & TIMETABLE: ${knowledgeBase.scheduleDetails || 'N/A'}
+DRESS CODE & WHAT TO BRING: ${knowledgeBase.dressCode || 'N/A'}
+ORGANIZER PHONE: ${knowledgeBase.contactPhone || 'N/A'}
+ORGANIZER EMAIL: ${knowledgeBase.contactEmail || 'N/A'}
+WHATSAPP: ${knowledgeBase.whatsappLink || 'N/A'}
+
+OFFICIAL EVENT FAQS:
+${faqsListText}
+===========================`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: userMessage.trim() }],
+          },
+        ],
+        config: {
+          systemInstruction,
+          temperature: 0.2,
+        },
+      });
+
+      const fullText = response.text || '';
+      const requiresFallback = fullText.includes('[FALLBACK_REQUIRED]');
+      const cleanAnswer = fullText.replace(/\[FALLBACK_REQUIRED\]/g, '').trim();
+
+      return res.status(200).json({
+        success: true,
+        answer: cleanAnswer || (requiresFallback ? 'I don\'t have that specific detail in our event guide.' : 'How else can I help you regarding this event?'),
+        requiresFallback,
+        fallbackDetails: {
+          message: knowledgeBase.fallbackMessage || 'For further assistance, please contact our event coordination team below:',
+          contactPhone: knowledgeBase.contactPhone,
+          contactEmail: knowledgeBase.contactEmail,
+          whatsappLink: knowledgeBase.whatsappLink,
+          socialLink: knowledgeBase.socialLink,
+          fallbackLink: knowledgeBase.fallbackLink,
+        },
+      });
+    } catch (err: any) {
+      console.error('Gemini API Helpdesk Error:', err);
+      return res.status(200).json({
+        success: true,
+        answer: knowledgeBase.fallbackMessage || 'I am unable to process that specific request right now. Please reach out to our event coordination team below:',
+        requiresFallback: true,
+        fallbackDetails: {
+          message: knowledgeBase.fallbackMessage || 'Please contact our event coordination team:',
+          contactPhone: knowledgeBase.contactPhone,
+          contactEmail: knowledgeBase.contactEmail,
+          whatsappLink: knowledgeBase.whatsappLink,
+          socialLink: knowledgeBase.socialLink,
+          fallbackLink: knowledgeBase.fallbackLink,
+        },
+      });
+    }
+  });
+
   // === MOUNT VITE / STATIC MIDDLEWARE AFTER API ROUTES ===
+
   if (isProd) {
     app.use(express.static(path.resolve(__dirname, 'dist')));
     app.get('*', (req, res) => {
