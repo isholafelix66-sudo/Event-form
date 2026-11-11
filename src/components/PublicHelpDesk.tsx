@@ -21,6 +21,7 @@ import {
 
 import { EventKnowledgeBase, ContactOption } from '../types';
 import { dbService } from '../services/db';
+import { answerFromKnowledgeBaseUniversal } from '../services/aiHelpDeskEngine';
 
 interface ChatMessage {
   id: string;
@@ -214,53 +215,51 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
-        const aiMsg: ChatMessage = {
-          id: `ai-${Date.now()}`,
-          sender: 'assistant',
-          text: data.answer,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          requiresFallback: data.requiresFallback,
-          fallbackDetails: data.fallbackDetails,
-        };
-        const updatedWithAi = [...updatedWithUser, aiMsg];
-        setMessages(updatedWithAi);
-        saveMessagesToDevice(updatedWithAi);
-      } else {
-        const errorMsg: ChatMessage = {
-          id: `ai-err-${Date.now()}`,
-          sender: 'assistant',
-          text: kb.fallbackMessage || `I'm unable to answer that specific detail at the moment, but our support team will be happy to help.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          requiresFallback: true,
-          fallbackDetails: {
-            message: kb.fallbackMessage,
-            contacts: kb.contacts,
-            contactPhone: kb.contactPhone,
-            contactEmail: kb.contactEmail,
-            whatsappLink: kb.whatsappLink,
-          },
-        };
-        const updatedWithErr = [...updatedWithUser, errorMsg];
-        setMessages(updatedWithErr);
-        saveMessagesToDevice(updatedWithErr);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.answer) {
+          const aiMsg: ChatMessage = {
+            id: `ai-${Date.now()}`,
+            sender: 'assistant',
+            text: data.answer,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            requiresFallback: data.requiresFallback,
+            fallbackDetails: data.fallbackDetails,
+          };
+          const updatedWithAi = [...updatedWithUser, aiMsg];
+          setMessages(updatedWithAi);
+          saveMessagesToDevice(updatedWithAi);
+          return;
+        }
       }
-    } catch (err) {
-      const networkErrMsg: ChatMessage = {
-        id: `ai-net-err-${Date.now()}`,
+      
+      // If server route returned 404/non-OK (e.g. Vercel static host), run instant universal client engine
+      const localResult = answerFromKnowledgeBaseUniversal(userText, kb);
+      const localAiMsg: ChatMessage = {
+        id: `ai-loc-${Date.now()}`,
         sender: 'assistant',
-        text: kb.fallbackMessage || `Network connection issue. Please feel free to reach out to our team directly:`,
+        text: localResult.answer,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        requiresFallback: true,
-        fallbackDetails: {
-          message: kb.fallbackMessage,
-          contacts: kb.contacts,
-        },
+        requiresFallback: localResult.requiresFallback,
+        fallbackDetails: localResult.fallbackDetails,
       };
-      const updatedWithNet = [...updatedWithUser, networkErrMsg];
-      setMessages(updatedWithNet);
-      saveMessagesToDevice(updatedWithNet);
+      const updatedWithLocal = [...updatedWithUser, localAiMsg];
+      setMessages(updatedWithLocal);
+      saveMessagesToDevice(updatedWithLocal);
+    } catch (err) {
+      // Complete network resilience for static hosting environments like Vercel
+      const localResult = answerFromKnowledgeBaseUniversal(userText, kb);
+      const networkFallbackMsg: ChatMessage = {
+        id: `ai-net-ok-${Date.now()}`,
+        sender: 'assistant',
+        text: localResult.answer,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        requiresFallback: localResult.requiresFallback,
+        fallbackDetails: localResult.fallbackDetails,
+      };
+      const updatedWithResilient = [...updatedWithUser, networkFallbackMsg];
+      setMessages(updatedWithResilient);
+      saveMessagesToDevice(updatedWithResilient);
     } finally {
       setIsSending(false);
     }

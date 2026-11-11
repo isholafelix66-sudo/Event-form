@@ -37,6 +37,7 @@ import {
 } from '../types';
 import { dbService } from '../services/db';
 import { useToast } from '../context/ToastContext';
+import { answerFromKnowledgeBaseUniversal } from '../services/aiHelpDeskEngine';
 
 interface HelpDeskAdminProps {
   onOpenPublicHelpDesk?: (slug: string) => void;
@@ -342,22 +343,27 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
-        setPreviewMessages((prev) => [
-          ...prev,
-          { sender: 'ai', text: data.answer, fallback: data.requiresFallback },
-        ]);
-      } else {
-        setPreviewMessages((prev) => [
-          ...prev,
-          { sender: 'ai', text: 'Error querying AI model.', fallback: true },
-        ]);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.answer) {
+          setPreviewMessages((prev) => [
+            ...prev,
+            { sender: 'ai', text: data.answer, fallback: data.requiresFallback },
+          ]);
+          return;
+        }
       }
-    } catch (err) {
+
+      const localResult = answerFromKnowledgeBaseUniversal(q, kb);
       setPreviewMessages((prev) => [
         ...prev,
-        { sender: 'ai', text: 'Network connection error during preview test.', fallback: true },
+        { sender: 'ai', text: localResult.answer, fallback: localResult.requiresFallback },
+      ]);
+    } catch (err) {
+      const localResult = answerFromKnowledgeBaseUniversal(q, kb);
+      setPreviewMessages((prev) => [
+        ...prev,
+        { sender: 'ai', text: localResult.answer, fallback: localResult.requiresFallback },
       ]);
     } finally {
       setPreviewLoading(false);
