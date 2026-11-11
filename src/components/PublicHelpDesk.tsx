@@ -68,6 +68,7 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
         if (isMounted) {
           setKb(fetchedKb);
           if (fetchedKb) {
+            dbService.recordHelpDeskInteraction(fetchedKb.eventId, true);
             // Check for device-specific saved chat history in localStorage
             const storageKey = getStorageKey(fetchedKb.eventId || slugOrId);
             const savedChat = localStorage.getItem(storageKey);
@@ -261,6 +262,7 @@ export const PublicHelpDesk: React.FC<PublicHelpDeskProps> = ({ slugOrId }) => {
       setMessages(updatedWithResilient);
       saveMessagesToDevice(updatedWithResilient);
     } finally {
+      dbService.recordHelpDeskInteraction(kb.eventId, false);
       setIsSending(false);
     }
   };

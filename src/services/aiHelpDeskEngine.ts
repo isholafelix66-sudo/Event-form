@@ -14,7 +14,7 @@ export interface AIHelpDeskResult {
 
 export const OFFICIAL_REGISTRATION_LINK = 'https://event-form-lcq5.vercel.app/#f=event-5917';
 
-// Client & Server Universal Grounded Q&A Engine following MASTER SYSTEM PROMPT
+// Intelligent & Grounded Q&A Engine following Master System Prompt and prioritizing Admin-saved FAQs
 export function answerFromKnowledgeBaseUniversal(
   query: string,
   kb: EventKnowledgeBase
@@ -40,7 +40,7 @@ export function answerFromKnowledgeBaseUniversal(
   };
 
   // ==========================================
-  // SECTION 6: CONVERSATIONAL ACKNOWLEDGEMENT HANDLING
+  // STEP 1: CONVERSATIONAL ACKNOWLEDGEMENT & GREETINGS
   // ==========================================
   if (/^(okay|ok|alright|all\s*right)\b/i.test(cleanQ) && tokens.length <= 3) {
     return {
@@ -90,17 +90,6 @@ export function answerFromKnowledgeBaseUniversal(
     };
   }
 
-  if (/^(you'?re\s*welcome)\b/i.test(cleanQ) && tokens.length <= 3) {
-    return {
-      answer: `Blessings! Please let me know if there is anything else you need.`,
-      requiresFallback: false,
-      fallbackDetails: defaultFallbackDetails,
-    };
-  }
-
-  // ==========================================
-  // SECTION 7: GREETINGS & INTRODUCTIONS
-  // ==========================================
   if (/^good\s*morning\b/i.test(cleanQ) && tokens.length <= 4) {
     return {
       answer: `Good morning! You're welcome to Worship Encounter 3.0's official Help Desk. What would you like to know about the programme?`,
@@ -134,10 +123,70 @@ export function answerFromKnowledgeBaseUniversal(
   }
 
   // ==========================================
-  // SECTION 4 & 5: INTENT MATCHING & FAQ RETRIEVAL
+  // STEP 2: SEARCH ADMIN-SAVED FAQS FIRST (HIGHEST PRIORITY)
+  // ==========================================
+  const faqs = Array.isArray(kb.faqs) ? kb.faqs : [];
+  let bestFaq: any = null;
+  let bestFaqScore = 0;
+
+  for (const faq of faqs) {
+    const fq = (faq.question || '').toLowerCase().replace(/[?!.,;:'"()]/g, ' ').trim();
+    const fAns = (faq.answer || '').toLowerCase();
+    let score = 0;
+
+    // Exact question or subphrase match
+    if (fq === cleanQ) score += 20;
+    else if (cleanQ.includes(fq) || fq.includes(cleanQ)) score += 12;
+
+    for (const t of tokens) {
+      if (fq.includes(t)) score += 4;
+      else if (fAns.includes(t)) score += 1;
+    }
+
+    if (score > bestFaqScore) {
+      bestFaqScore = score;
+      bestFaq = faq;
+    }
+  }
+
+  // If a saved FAQ matches with confidence, return the EXACT saved answer
+  if (bestFaq && bestFaqScore >= 4) {
+    return {
+      answer: bestFaq.answer,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // ==========================================
+  // STEP 3: SEARCH ADMIN CUSTOM KNOWLEDGE SECTIONS
+  // ==========================================
+  const sections = Array.isArray(kb.sections) ? kb.sections : [];
+  for (const sec of sections) {
+    const sTitle = (sec.title || '').toLowerCase();
+    const sContent = (sec.content || '').toLowerCase();
+    let secScore = 0;
+
+    if (cleanQ.includes(sTitle) || sTitle.includes(cleanQ)) secScore += 10;
+    for (const t of tokens) {
+      if (sTitle.includes(t)) secScore += 3;
+      if (sContent.includes(t)) secScore += 1;
+    }
+
+    if (secScore >= 4) {
+      return {
+        answer: `**${sec.title}:**\n${sec.content}`,
+        requiresFallback: false,
+        fallbackDetails: defaultFallbackDetails,
+      };
+    }
+  }
+
+  // ==========================================
+  // STEP 4: REASONING & INTENT MATCHING ON OFFICIAL EVENT FACTS
   // ==========================================
 
-  // INTENT A: REGISTRATION PASS / TICKET COLLECTION (Check before general registration)
+  // INTENT A: REGISTRATION PASS / TICKET COLLECTION
   if (/(pass|ticket|badge|collect|receive\s*my|get\s*my\s*pass)/i.test(cleanQ)) {
     return {
       answer: `To receive your registration pass, you must first complete the official registration process.\n\nAfter submitting your registration on the portal, follow the confirmation and pass-collection instructions provided by the organisers.\n\nRegistration portal: [${OFFICIAL_REGISTRATION_LINK}](${OFFICIAL_REGISTRATION_LINK})\n\nIf you need further assistance with your pass, feel free to contact the event organisers.`,
@@ -146,7 +195,7 @@ export function answerFromKnowledgeBaseUniversal(
     };
   }
 
-  // INTENT B: HOW TO REGISTER / SIGN UP / LINK
+  // INTENT B: HOW TO REGISTER / SIGN UP / FORM LINK
   if (/(how\s*do\s*i\s*register|how\s*to\s*register|where\s*can\s*i\s*register|where\s*to\s*register|registration\s*link|sign\s*up|portal|how\s*can\s*i\s*sign\s*up|where\s*is\s*the\s*registration)/i.test(cleanQ)) {
     return {
       answer: `Registration is simple and completely FREE.\n\nVisit the official registration page below and complete the registration form:\n\n👉 [${OFFICIAL_REGISTRATION_LINK}](${OFFICIAL_REGISTRATION_LINK})\n\nRemember, registration is compulsory for everyone attending.`,
@@ -155,10 +204,10 @@ export function answerFromKnowledgeBaseUniversal(
     };
   }
 
-  // INTENT C: IS REGISTRATION FREE / COST / PRICE / FEE / PAY
-  if (/(is\s*it\s*free|registration\s*free|pay|fee|cost|price|ticket\s*fee|entry\s*fee|do\s*i\s*need\s*to\s*pay|how\s*much)/i.test(cleanQ)) {
+  // INTENT C: COST / MONEY / FEE / PRICE / PAY / IS IT FREE
+  if (/(money|pay|fee|cost|price|is\s*it\s*free|registration\s*free|do\s*i\s*need\s*money|ticket\s*fee|entry\s*fee|do\s*i\s*need\s*to\s*pay|how\s*much)/i.test(cleanQ)) {
     return {
-      answer: `Yes! Registration for Worship Encounter 3.0 is 100% FREE.\n\nHowever, registration is compulsory for everyone attending. This helps the organisers coordinate security and seating arrangements.\n\nRegister free here: [${OFFICIAL_REGISTRATION_LINK}](${OFFICIAL_REGISTRATION_LINK})`,
+      answer: `Yes! Registration for Worship Encounter 3.0 is 100% FREE.\n\nYou do not need money to register or attend. However, registration is compulsory for everyone attending to help the organisers coordinate security and seating arrangements.\n\nRegister free here: [${OFFICIAL_REGISTRATION_LINK}](${OFFICIAL_REGISTRATION_LINK})`,
       requiresFallback: false,
       fallbackDetails: defaultFallbackDetails,
     };
@@ -182,10 +231,10 @@ export function answerFromKnowledgeBaseUniversal(
     };
   }
 
-  // INTENT F: VENUE / LOCATION / WHERE IS IT HOLDING / CHURCH
+  // INTENT F: VENUE / LOCATION / WHERE IS IT HOLDING / WHICH CHURCH
   if (/(where|venue|location|address|church|holding|having\s*the\s*event|which\s*church)/i.test(cleanQ) && !cleanQ.includes('locate') && !cleanQ.includes('direction') && !cleanQ.includes('get there') && !cleanQ.includes('map')) {
     return {
-      answer: `The programme will hold at Ijeru Baptist Church.\n\nWe look forward to welcoming you!`,
+      answer: `The programme will hold at Ijeru Baptist Church, Ogbomoso.\n\nWe look forward to welcoming you!`,
       requiresFallback: false,
       fallbackDetails: defaultFallbackDetails,
     };
@@ -209,15 +258,8 @@ export function answerFromKnowledgeBaseUniversal(
 
   // INTENT H: THEME / TOPIC / WORSHIP CULTURE / WHAT IS IT ABOUT
   if (/(theme|topic|worship\s*culture|what\s*is\s*worship\s*encounter|about|concept|what\s*is\s*the\s*programme)/i.test(cleanQ)) {
-    if (cleanQ.includes('meaning') || cleanQ.includes('culture') || cleanQ.includes('about')) {
-      return {
-        answer: `The theme is WORSHIP CULTURE (The Way of Life).\n\nIt focuses on worship as more than an activity or event, but as a way of life. Worship Encounter 3.0 is a worship gathering designed to bring people together in an atmosphere of worship, spiritual encounter and fellowship.`,
-        requiresFallback: false,
-        fallbackDetails: defaultFallbackDetails,
-      };
-    }
     return {
-      answer: `The theme of Worship Encounter 3.0 is WORSHIP CULTURE (The Way of Life).\n\nWorship Encounter 3.0 is a worship gathering designed to bring people together in an atmosphere of worship, spiritual encounter and fellowship.`,
+      answer: `The theme of Worship Encounter 3.0 is WORSHIP CULTURE (The Way of Life).\n\nIt focuses on worship as more than an activity or event, but as a way of life. Worship Encounter 3.0 is a worship gathering designed to bring people together in an atmosphere of worship, spiritual encounter and fellowship.`,
       requiresFallback: false,
       fallbackDetails: defaultFallbackDetails,
     };
@@ -239,53 +281,8 @@ export function answerFromKnowledgeBaseUniversal(
     };
   }
 
-  // ==========================================
-  // CHECK DYNAMIC FAQS FROM KNOWLEDGE BASE
-  // ==========================================
-  const faqs = Array.isArray(kb.faqs) ? kb.faqs : [];
-  let bestFaq: any = null;
-  let bestFaqScore = 0;
-
-  for (const faq of faqs) {
-    const fq = (faq.question || '').toLowerCase();
-    const fAns = (faq.answer || '').toLowerCase();
-    let score = 0;
-
-    if (fq.includes(cleanQ) || cleanQ.includes(fq)) score += 10;
-    for (const t of tokens) {
-      if (fq.includes(t)) score += 3;
-      else if (fAns.includes(t)) score += 1;
-    }
-    if (score > bestFaqScore) {
-      bestFaqScore = score;
-      bestFaq = faq;
-    }
-  }
-
-  if (bestFaq && (bestFaqScore >= 2 || (tokens.length <= 2 && bestFaqScore >= 1))) {
-    return {
-      answer: bestFaq.answer,
-      requiresFallback: false,
-      fallbackDetails: defaultFallbackDetails,
-    };
-  }
-
-  // Check Custom Sections
-  const sections = Array.isArray(kb.sections) ? kb.sections : [];
-  for (const sec of sections) {
-    const sTitle = (sec.title || '').toLowerCase();
-    const sContent = (sec.content || '').toLowerCase();
-    if (tokens.some((t) => sTitle.includes(t) || sContent.includes(t))) {
-      return {
-        answer: `**${sec.title}:**\n${sec.content}`,
-        requiresFallback: false,
-        fallbackDetails: defaultFallbackDetails,
-      };
-    }
-  }
-
-  // Contact Request
-  if (/(contact|call|phone|whatsapp|email|reach|talk\s*to\s*someone|support)/i.test(cleanQ)) {
+  // Contact Requests
+  if (/(contact|call|phone|whatsapp|email|reach|talk\s*to\s*someone|support|organizer)/i.test(cleanQ)) {
     return {
       answer: `You can reach the event organisers directly through the official contact channels below:`,
       requiresFallback: true,
@@ -294,7 +291,19 @@ export function answerFromKnowledgeBaseUniversal(
   }
 
   // ==========================================
-  // SECTION 8: HANDLING UNKNOWN QUESTIONS
+  // STEP 5: UNRELATED QUESTION REDIRECT
+  // ==========================================
+  const unrelatedTerms = ['weather', 'capital', 'president', 'recipe', 'football', 'soccer', 'movie', 'crypto', 'bitcoin'];
+  if (unrelatedTerms.some((t) => cleanQ.includes(t))) {
+    return {
+      answer: `I am specialized as the Event Concierge for Worship Encounter 3.0. Please feel free to ask me anything about Worship Encounter 3.0's theme, venue, schedule, registration, or guidelines!`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // ==========================================
+  // STEP 6: UNKNOWN / UNCONFIRMED EVENT DETAILS
   // ==========================================
   return {
     answer: `I don't have confirmed information about that at the moment. Please reach out to the event organisers for accurate clarification.`,
