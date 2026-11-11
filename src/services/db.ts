@@ -1597,6 +1597,22 @@ class DatabaseService {
     } catch (e) {}
   }
 
+  async clearKnowledgeBaseContents(eventId: string): Promise<void> {
+    try {
+      const kb = await this.getKnowledgeBase(eventId);
+      if (kb) {
+        const clearedKb = {
+          ...kb,
+          faqs: [],
+          sections: [],
+        };
+        await this.saveKnowledgeBase(clearedKb);
+      }
+    } catch (e) {
+      console.error('Failed to clear KB contents:', e);
+    }
+  }
+
   // Help Desk User & Response Analytics Tracking
   async recordHelpDeskInteraction(
     eventId: string,
@@ -1669,7 +1685,7 @@ class DatabaseService {
       timestamp: new Date().toISOString(),
     };
     try {
-      await setDoc(doc(db, 'support_requests', id), reqData);
+      await setDoc(doc(db, 'forms', request.eventId, 'support_requests', id), reqData);
       return reqData;
     } catch (e) {
       throw e;
@@ -1678,10 +1694,9 @@ class DatabaseService {
 
   async getSupportRequests(eventId: string): Promise<any[]> {
     try {
-      const snap = await getDocs(collection(db, 'support_requests'));
+      const snap = await getDocs(collection(db, 'forms', eventId, 'support_requests'));
       return snap.docs
         .map((d) => d.data())
-        .filter((r) => r.eventId === eventId)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     } catch (e) {
       return [];

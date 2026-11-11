@@ -534,6 +534,19 @@ export const HelpDeskAdmin: React.FC<HelpDeskAdminProps> = ({ onOpenPublicHelpDe
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
+              <button
+                onClick={async () => {
+                  if (kb && window.confirm('Are you sure you want to clear all FAQs and custom sections?')) {
+                    await dbService.clearKnowledgeBaseContents(kb.eventId);
+                    const fresh = await dbService.getKnowledgeBase(kb.eventId);
+                    setKb(fresh);
+                    showToast('Knowledge base contents cleared.', 'info');
+                  }
+                }}
+                className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 font-medium text-xs rounded-xl transition-all"
+              >
+                Clear KB
+              </button>
             </div>
           </div>
 

@@ -150,7 +150,7 @@ export function answerFromKnowledgeBaseUniversal(
   }
 
   // If a saved FAQ matches with confidence, return the EXACT saved answer
-  if (bestFaq && bestFaqScore >= 4) {
+  if (bestFaq && bestFaqScore >= 1) {
     return {
       answer: bestFaq.answer,
       requiresFallback: false,
@@ -170,10 +170,10 @@ export function answerFromKnowledgeBaseUniversal(
     if (cleanQ.includes(sTitle) || sTitle.includes(cleanQ)) secScore += 10;
     for (const t of tokens) {
       if (sTitle.includes(t)) secScore += 3;
-      if (sContent.includes(t)) secScore += 1;
+      if (sContent.includes(t)) secScore += 2;
     }
 
-    if (secScore >= 4) {
+    if (secScore >= 1) {
       return {
         answer: `**${sec.title}:**\n${sec.content}`,
         requiresFallback: false,
