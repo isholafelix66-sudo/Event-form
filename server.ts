@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { GoogleGenAI } from '@google/genai';
+import { answerFromKnowledgeBaseUniversal } from './src/services/aiHelpDeskEngine.js';
 
 
 dotenv.config();
@@ -100,188 +101,10 @@ function answerFromKnowledgeBase(
   kb: any,
   recentHistory: Array<{ role: string; parts: Array<{ text: string }> }> = []
 ): { answer: string; requiresFallback: boolean } {
-  const q = (query || '').toLowerCase().trim();
-  const cleanQ = q.replace(/[?!.,;:'"()]/g, ' ').replace(/\s+/g, ' ').trim();
-  const tokens = cleanQ.split(' ').filter((w) => w.length > 2);
-
-  // 1. Natural greetings & pleasantries
-  const isGreeting = /^(hello|hi|hey|good\s*(morning|afternoon|evening|day)|greetings|howdy|what'?s\s*up|worship\s*culture|blessings|peace)\b/i.test(cleanQ);
-  if (isGreeting && tokens.length <= 4) {
-    return {
-      answer: `Hello! 👋 Welcome to the official **${kb.eventTitle}** Help Desk. I am your 24/7 Event Concierge. You can ask me anything about the theme, venue, schedule, registration, parking, and guidelines! How may I assist you today?`,
-      requiresFallback: false,
-    };
-  }
-
-  const isThanks = /^(thanks|thank\s*you|bless\s*you|god\s*bless\s*you|grateful|much\s*appreciated)\b/i.test(cleanQ);
-  if (isThanks) {
-    return {
-      answer: `You're very welcome! If you have any more questions about **${kb.eventTitle}**, please don't hesitate to ask. God bless you! 🙏`,
-      requiresFallback: false,
-    };
-  }
-
-  const isIdentity = /^(who\s*(are\s*you|made\s*you)|what\s*(are\s*you|is\s*this|can\s*you\s*do))\b/i.test(cleanQ);
-  if (isIdentity) {
-    return {
-      answer: `I am the dedicated Event Concierge for **${kb.eventTitle}**. I'm here to provide accurate details directly from our official event guide—including venue location, timetable, theme insights, dress code, and registration information.`,
-      requiresFallback: false,
-    };
-  }
-
-  const faqs = Array.isArray(kb.faqs) ? kb.faqs : [];
-
-  // 2. Search configured FAQs first (High Precision matching)
-  let bestFaq: any = null;
-  let bestFaqScore = 0;
-
-  for (const faq of faqs) {
-    const fq = (faq.question || '').toLowerCase();
-    const fAns = (faq.answer || '').toLowerCase();
-    let score = 0;
-
-    // Exact phrase match
-    if (fq.includes(cleanQ) || cleanQ.includes(fq)) score += 10;
-    for (const t of tokens) {
-      if (fq.includes(t)) score += 3;
-      else if (fAns.includes(t)) score += 1;
-    }
-    if (score > bestFaqScore) {
-      bestFaqScore = score;
-      bestFaq = faq;
-    }
-  }
-
-  if (bestFaq && (bestFaqScore >= 2 || (tokens.length <= 2 && bestFaqScore >= 1))) {
-    return {
-      answer: bestFaq.answer,
-      requiresFallback: false,
-    };
-  }
-
-  // 3. Search Registration & Ticket Policy
-  const regTerms = ['register', 'registration', 'fee', 'free', 'cost', 'price', 'ticket', 'pass', 'compulsory', 'pay', 'paid', 'money', 'entry fee'];
-  const matchesReg = regTerms.some((t) => cleanQ.includes(t));
-  if (matchesReg) {
-    const regFaq = faqs.find((f: any) => /fee|free|register|ticket|cost/i.test(f.question || ''));
-    if (regFaq) {
-      return { answer: regFaq.answer, requiresFallback: false };
-    }
-    const regSec = (kb.sections || []).find((s: any) => /reg|ticket|fee|admission|entry/i.test(s.title || ''));
-    if (regSec) {
-      return { answer: `**${regSec.title}:**\n${regSec.content}`, requiresFallback: false };
-    }
-    if (kb.overview && /free|registration/i.test(kb.overview)) {
-      return {
-        answer: `**Registration & Entry Policy:**\nRegistration for **${kb.eventTitle}** is 100% **FREE**, but **COMPULSORY** for all attendees to secure a seat and digital pass.`,
-        requiresFallback: false,
-      };
-    }
-  }
-
-  // 4. Search Organizers
-  const orgTerms = ['organizer', 'organiser', 'who organized', 'who is organising', 'who is organizing', 'host', 'bsf', 'baptist student fellowship'];
-  const matchesOrg = orgTerms.some((t) => cleanQ.includes(t));
-  if (matchesOrg) {
-    const orgFaq = faqs.find((f: any) => /organi/i.test(f.question || ''));
-    if (orgFaq) {
-      return { answer: orgFaq.answer, requiresFallback: false };
-    }
-    return {
-      answer: `**Event Organiser:**\n**${kb.eventTitle}** is organised by the **Baptist Student Fellowship (BSF)**, Ijeru Baptist Church, Ogbomoso.`,
-      requiresFallback: false,
-    };
-  }
-
-  // 5. Search Venue, Address, Directions & Plus Code
-  const venueTerms = ['venue', 'where', 'location', 'address', 'directions', 'locate', 'church', 'ijeru', 'ogbomoso', 'map', 'plus code', 'navigate', 'driving', 'bus', 'hall', 'arubiewe'];
-  const matchesVenue = venueTerms.some((t) => cleanQ.includes(t));
-  if (matchesVenue && kb.venueDetails) {
-    return {
-      answer: `**Venue & Location:**\n${kb.venueDetails}`,
-      requiresFallback: false,
-    };
-  }
-
-  // 6. Search Date, Schedule & Door Opening Times
-  const scheduleTerms = ['time', 'when', 'date', 'schedule', 'timetable', 'start', 'end', 'hours', 'night', 'doors', 'agenda', 'overnight'];
-  const matchesSchedule = scheduleTerms.some((t) => cleanQ.includes(t));
-  if (matchesSchedule && kb.scheduleDetails) {
-    return {
-      answer: `**Date & Schedule Details:**\n${kb.scheduleDetails}`,
-      requiresFallback: false,
-    };
-  }
-
-  // 7. Search Theme & Purpose
-  const themeTerms = ['theme', 'about', 'culture', 'meaning', 'worship culture', 'purpose', 'overview', 'concept', 'what is worship', 'lifestyle', 'singing'];
-  const matchesTheme = themeTerms.some((t) => cleanQ.includes(t));
-  if (matchesTheme) {
-    const themeSec = (kb.sections || []).find((s: any) => /theme|worship culture/i.test(s.title || ''));
-    if (themeSec) {
-      return { answer: `**${themeSec.title}:**\n${themeSec.content}`, requiresFallback: false };
-    }
-    if (kb.overview) {
-      return {
-        answer: `**About & Theme:**\n${kb.overview}`,
-        requiresFallback: false,
-      };
-    }
-  }
-
-  // 8. Search Dress Code & Guidelines
-  const dressTerms = ['dress', 'code', 'wear', 'attire', 'clothes', 'outfit', 'what to wear', 'guidelines'];
-  const matchesDress = dressTerms.some((t) => cleanQ.includes(t));
-  if (matchesDress && kb.dressCode) {
-    return {
-      answer: `**Dress Code Guidelines:**\n${kb.dressCode}`,
-      requiresFallback: false,
-    };
-  }
-
-  // 9. Search Custom Sections
-  const sections = Array.isArray(kb.sections) ? kb.sections : [];
-  let bestSection: any = null;
-  let bestSectionScore = 0;
-
-  for (const sec of sections) {
-    const sTitle = (sec.title || '').toLowerCase();
-    const sContent = (sec.content || '').toLowerCase();
-    let score = 0;
-
-    if (cleanQ.includes(sTitle) || sTitle.includes(cleanQ)) score += 8;
-    for (const t of tokens) {
-      if (sTitle.includes(t)) score += 3;
-      if (sContent.includes(t)) score += 1;
-    }
-
-    if (score > bestSectionScore) {
-      bestSectionScore = score;
-      bestSection = sec;
-    }
-  }
-
-  if (bestSection && bestSectionScore >= 2) {
-    return {
-      answer: `**${bestSection.title}:**\n${bestSection.content}`,
-      requiresFallback: false,
-    };
-  }
-
-  // 10. Contact requests
-  const contactTerms = ['contact', 'call', 'phone', 'whatsapp', 'email', 'reach', 'talk to someone', 'admin', 'help desk', 'organizer phone', 'support'];
-  const matchesContact = contactTerms.some((t) => cleanQ.includes(t));
-  if (matchesContact) {
-    return {
-      answer: `You can reach our official event team directly through any of the contact channels below:`,
-      requiresFallback: true,
-    };
-  }
-
-  // 11. Graceful fallback for unanswerable queries (politely show contact details)
+  const result = answerFromKnowledgeBaseUniversal(query, kb);
   return {
-    answer: kb.fallbackMessage || `I don't have that specific detail in our event guide right now. Please reach out to our event support team directly using the contact options below:`,
-    requiresFallback: true,
+    answer: result.answer,
+    requiresFallback: result.requiresFallback,
   };
 }
 
@@ -562,29 +385,59 @@ async function createServer() {
             ? knowledgeBase.contacts.map((c: any) => `- ${c.label || c.type}: ${c.value}`).join('\n')
             : `Phone: ${knowledgeBase.contactPhone || 'N/A'}, Email: ${knowledgeBase.contactEmail || 'N/A'}`;
 
-          const systemInstruction = `You are the friendly, intelligent AI Event Concierge for "${knowledgeBase.eventTitle}".
-Your objective is to assist visitors in a warm, natural, highly conversational manner using strictly the event knowledge base context below.
+          const systemInstruction = `MASTER SYSTEM PROMPT — WORSHIP ENCOUNTER 3.0 OFFICIAL AI EVENT CONCIERGE
 
-CONVERSATIONAL & ACCURACY RULES:
-1. NATURAL GREETINGS & CASUAL CHAT: Respond warmly to greetings like "Hello", "Hi", "Good morning", "Thanks", or questions about who you are. DO NOT output [FALLBACK_REQUIRED] or dump contact details for simple greetings or polite banter.
-2. STRICT EVENT GROUNDING: When answering specific event questions (about schedule, venue, dress code, tickets, rules, catering, etc.), use ONLY facts explicitly stated in the knowledge base below. Never invent or guess dates, prices, parking fees, or details not written here.
-3. CONTEXT RECALL: Remember previous messages in the chat history. Maintain smooth conversation flow so users don't have to repeat themselves.
-4. UNANSWERABLE EVENT QUESTIONS: If the user asks a specific factual question about event details that is NOT documented anywhere in the knowledge base below, state politely that the requested detail isn't in the event guide right now, and include the exact tag "[FALLBACK_REQUIRED]" anywhere in your response so contact options appear.
+1. YOUR IDENTITY
+You are the official AI Event Concierge for Worship Encounter 3.0.
+You serve as the event's 24/7 digital help desk. Your responsibility is to provide visitors, participants and prospective attendees with accurate information about the programme.
+You must communicate like a knowledgeable, welcoming and well-informed human event assistant.
+Your responses must be natural, intelligent, relevant, polite and conversational.
+You are not just an FAQ machine. You must understand what visitors mean, recognise conversational messages and respond appropriately.
 
-=== EVENT KNOWLEDGE BASE CONTEXT ===
-EVENT TITLE: ${knowledgeBase.eventTitle}
-OVERVIEW & ABOUT: ${knowledgeBase.overview || 'N/A'}
-VENUE & PARKING DIRECTIONS: ${knowledgeBase.venueDetails || 'N/A'}
-SCHEDULE & TIMETABLE: ${knowledgeBase.scheduleDetails || 'N/A'}
-DRESS CODE & WHAT TO BRING: ${knowledgeBase.dressCode || 'N/A'}
+2. OFFICIAL EVENT KNOWLEDGE BASE
+Event Name: ${knowledgeBase.eventTitle || 'Worship Encounter 3.0'}
+Theme: WORSHIP CULTURE (The Way of Life)
+Event Dates: November 13th–14th, 2026
+Venue: Ijeru Baptist Church
+Registration Fee: FREE (100%)
+Registration Requirement: Registration is COMPULSORY for every attendee.
+Official Registration Link: https://event-form-lcq5.vercel.app/#f=event-5917
+Dress Code: Modest and comfortable dressing. Attendees are expected to dress decently and appropriately for a worship gathering.
+Venue Details: ${knowledgeBase.venueDetails || 'Ijeru Baptist Church, Ogbomoso, Oyo State, Nigeria.'}
+Schedule Details: ${knowledgeBase.scheduleDetails || 'November 13th–14th, 2026 at 10:00 PM.'}
 
 ${sectionsText ? `ADDITIONAL KNOWLEDGE SECTIONS:\n${sectionsText}\n` : ''}
-FREQUENTLY ASKED QUESTIONS (FAQS):
+FREQUENTLY ASKED QUESTIONS:
 ${faqsListText}
 
 CONFIGURED CONTACT CHANNELS:
 ${contactsListText}
-===================================`;
+
+3. APPROVED FAQ ANSWERS & INTENTS
+- What is Worship Encounter 3.0? Worship Encounter 3.0 is a worship gathering designed to bring people together in an atmosphere of worship, spiritual encounter and fellowship.
+- What is the theme? The theme is WORSHIP CULTURE (The Way of Life). It focuses on worship as more than an activity or event, but as a way of life.
+- When is the programme? The programme holds on November 13th and 14th, 2026 at 10:00 PM.
+- What is the difference between the two days? Worship Encounter 3.0 is a two-day gathering taking place on November 13th and 14th, 2026. Both days form part of the programme.
+- Where is the venue? The programme will hold at Ijeru Baptist Church. We look forward to welcoming you!
+- How do I locate Ijeru Baptist Church? The venue is Ijeru Baptist Church. You can use the official Google Maps location link to navigate to the church.
+- Is registration free? Yes! Registration for Worship Encounter 3.0 is 100% FREE. However, registration is compulsory for everyone attending. This helps the organisers coordinate security and seating arrangements.
+- How do I register? Visit the official registration page below and complete the registration form: https://event-form-lcq5.vercel.app/#f=event-5917
+- How do I receive my registration pass? To receive your registration pass, you must first complete the official registration process. After submitting your registration, follow the confirmation and pass-collection instructions provided by the organisers.
+- Is registration compulsory? Yes. Registration is compulsory for everyone attending Worship Encounter 3.0, even though it is completely free.
+- Is there a dress code? We encourage modest and comfortable dressing. Please dress decently and appropriately for a worship gathering.
+- Can I attend without registering? No. Registration is compulsory for all attendees. However, registration is completely FREE.
+- Where can I register? You can register through the official registration portal: https://event-form-lcq5.vercel.app/#f=event-5917
+
+4. CONVERSATIONAL & ACKNOWLEDGEMENT HANDLING
+- For conversational messages like "Okay", "Alright", "Thank you", "Noted", "Great", "Fine", "Bye", respond naturally with friendly human conversation. DO NOT output [FALLBACK_REQUIRED] or search FAQs for simple acknowledgements.
+- For greetings like "Hello", "Good morning", "Hi there", respond warmly with a welcome greeting.
+- For unknown questions not covered in the knowledge base, state politely: "I don't have confirmed information about that at the moment. Please reach out to the event organisers for accurate clarification." and include the exact tag [FALLBACK_REQUIRED].
+
+5. CRITICAL RESPONSE MATCHING RULES
+- Always read the visitor's latest message carefully and match their exact question intention.
+- Never substitute an unrelated answer (e.g. never answer a venue question with the theme, never answer pass collection with fee).
+- Always provide the official registration link https://event-form-lcq5.vercel.app/#f=event-5917 whenever registration is requested.
+`;
 
           const contents: any[] = [];
           if (Array.isArray(chatHistory) && chatHistory.length > 0) {

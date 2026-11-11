@@ -12,14 +12,16 @@ export interface AIHelpDeskResult {
   };
 }
 
-// Client & Server Universal Grounded Q&A Engine (Guarantees zero-downtime on Vercel static & Node servers)
+export const OFFICIAL_REGISTRATION_LINK = 'https://event-form-lcq5.vercel.app/#f=event-5917';
+
+// Client & Server Universal Grounded Q&A Engine following MASTER SYSTEM PROMPT
 export function answerFromKnowledgeBaseUniversal(
   query: string,
   kb: EventKnowledgeBase
 ): AIHelpDeskResult {
-  const q = (query || '').toLowerCase().trim();
-  const cleanQ = q.replace(/[?!.,;:'"()]/g, ' ').replace(/\s+/g, ' ').trim();
-  const tokens = cleanQ.split(' ').filter((w) => w.length > 2);
+  const q = (query || '').trim();
+  const cleanQ = q.toLowerCase().replace(/[?!.,;:'"()]/g, ' ').replace(/\s+/g, ' ').trim();
+  const tokens = cleanQ.split(' ').filter((w) => w.length >= 2);
 
   const activeContacts: ContactOption[] = Array.isArray(kb.contacts) && kb.contacts.length > 0
     ? kb.contacts
@@ -37,37 +39,210 @@ export function answerFromKnowledgeBaseUniversal(
     whatsappLink: kb.whatsappLink,
   };
 
-  // 1. Natural greetings & pleasantries
-  const isGreeting = /^(hello|hi|hey|good\s*(morning|afternoon|evening|day)|greetings|howdy|what'?s\s*up|worship\s*culture|blessings|peace)\b/i.test(cleanQ);
-  if (isGreeting && tokens.length <= 4) {
+  // ==========================================
+  // SECTION 6: CONVERSATIONAL ACKNOWLEDGEMENT HANDLING
+  // ==========================================
+  if (/^(okay|ok|alright|all\s*right)\b/i.test(cleanQ) && tokens.length <= 3) {
     return {
-      answer: `Hello! 👋 Welcome to the official **${kb.eventTitle}** Help Desk. I am your 24/7 Event Concierge. You can ask me anything about the theme, venue, schedule, registration, parking, and guidelines! How may I assist you today?`,
+      answer: `Alright! Let me know if you need any further information about Worship Encounter 3.0. I'm happy to help.`,
       requiresFallback: false,
       fallbackDetails: defaultFallbackDetails,
     };
   }
 
-  const isThanks = /^(thanks|thank\s*you|bless\s*you|god\s*bless\s*you|grateful|much\s*appreciated)\b/i.test(cleanQ);
-  if (isThanks) {
+  if (/^(thank\s*you|thanks|grateful|much\s*appreciated)\b/i.test(cleanQ)) {
     return {
-      answer: `You're very welcome! If you have any more questions about **${kb.eventTitle}**, please don't hesitate to ask. God bless you! 🙏`,
+      answer: `You're very welcome! We're glad to have you. See you at Worship Encounter 3.0!`,
       requiresFallback: false,
       fallbackDetails: defaultFallbackDetails,
     };
   }
 
-  const isIdentity = /^(who\s*(are\s*you|made\s*you)|what\s*(are\s*you|is\s*this|can\s*you\s*do))\b/i.test(cleanQ);
-  if (isIdentity) {
+  if (/^(noted|understood|i\s*see)\b/i.test(cleanQ) && tokens.length <= 3) {
     return {
-      answer: `I am the dedicated Event Concierge for **${kb.eventTitle}**. I'm here to provide accurate details directly from our official event guide—including venue location, timetable, theme insights, dress code, and registration information.`,
+      answer: `Wonderful! Don't forget to complete your free registration before the programme if you haven't already.`,
       requiresFallback: false,
       fallbackDetails: defaultFallbackDetails,
     };
   }
 
+  if (/^(that'?s\s*fine|fine|no\s*problem|cool)\b/i.test(cleanQ) && tokens.length <= 3) {
+    return {
+      answer: `Alright! Feel free to reach out whenever you need assistance.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  if (/^(great|nice|wonderful|perfect)\b/i.test(cleanQ) && tokens.length <= 3) {
+    return {
+      answer: `Glad to hear that! Looking forward to seeing you at the programme.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  if (/^(bye|goodbye|see\s*you)\b/i.test(cleanQ) && tokens.length <= 3) {
+    return {
+      answer: `Goodbye! Have a wonderful day. We look forward to seeing you at Worship Encounter 3.0.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  if (/^(you'?re\s*welcome)\b/i.test(cleanQ) && tokens.length <= 3) {
+    return {
+      answer: `Blessings! Please let me know if there is anything else you need.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // ==========================================
+  // SECTION 7: GREETINGS & INTRODUCTIONS
+  // ==========================================
+  if (/^good\s*morning\b/i.test(cleanQ) && tokens.length <= 4) {
+    return {
+      answer: `Good morning! You're welcome to Worship Encounter 3.0's official Help Desk. What would you like to know about the programme?`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  if (/^good\s*(afternoon|evening|day)\b/i.test(cleanQ) && tokens.length <= 4) {
+    return {
+      answer: `Welcome to Worship Encounter 3.0's official Help Desk! How can I assist you with the programme today?`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  if (/^(hello|hi|hi\s*there|hey|greetings|howdy)\b/i.test(cleanQ) && tokens.length <= 3) {
+    return {
+      answer: `Hello! Welcome to the official Worship Encounter 3.0 Help Desk. How can I assist you today?`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  if (/^(who\s*(are\s*you|made\s*you)|what\s*(are\s*you|is\s*this|can\s*you\s*do))\b/i.test(cleanQ)) {
+    return {
+      answer: `I am the official AI Event Concierge for Worship Encounter 3.0. I'm here to provide accurate details directly from our official event guide—including venue location, timetable, theme insights, dress code, and registration information.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // ==========================================
+  // SECTION 4 & 5: INTENT MATCHING & FAQ RETRIEVAL
+  // ==========================================
+
+  // INTENT A: REGISTRATION PASS / TICKET COLLECTION (Check before general registration)
+  if (/(pass|ticket|badge|collect|receive\s*my|get\s*my\s*pass)/i.test(cleanQ)) {
+    return {
+      answer: `To receive your registration pass, you must first complete the official registration process.\n\nAfter submitting your registration on the portal, follow the confirmation and pass-collection instructions provided by the organisers.\n\nRegistration portal: [${OFFICIAL_REGISTRATION_LINK}](${OFFICIAL_REGISTRATION_LINK})\n\nIf you need further assistance with your pass, feel free to contact the event organisers.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // INTENT B: HOW TO REGISTER / SIGN UP / LINK
+  if (/(how\s*do\s*i\s*register|how\s*to\s*register|where\s*can\s*i\s*register|where\s*to\s*register|registration\s*link|sign\s*up|portal|how\s*can\s*i\s*sign\s*up|where\s*is\s*the\s*registration)/i.test(cleanQ)) {
+    return {
+      answer: `Registration is simple and completely FREE.\n\nVisit the official registration page below and complete the registration form:\n\n👉 [${OFFICIAL_REGISTRATION_LINK}](${OFFICIAL_REGISTRATION_LINK})\n\nRemember, registration is compulsory for everyone attending.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // INTENT C: IS REGISTRATION FREE / COST / PRICE / FEE / PAY
+  if (/(is\s*it\s*free|registration\s*free|pay|fee|cost|price|ticket\s*fee|entry\s*fee|do\s*i\s*need\s*to\s*pay|how\s*much)/i.test(cleanQ)) {
+    return {
+      answer: `Yes! Registration for Worship Encounter 3.0 is 100% FREE.\n\nHowever, registration is compulsory for everyone attending. This helps the organisers coordinate security and seating arrangements.\n\nRegister free here: [${OFFICIAL_REGISTRATION_LINK}](${OFFICIAL_REGISTRATION_LINK})`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // INTENT D: IS REGISTRATION COMPULSORY / ATTEND WITHOUT REGISTERING
+  if (/(compulsory|attend\s*without|mandatory|must\s*i\s*register)/i.test(cleanQ)) {
+    return {
+      answer: `Yes, registration is compulsory for everyone attending Worship Encounter 3.0, even though it is completely FREE.\n\nNo, attendees cannot enter without registering. Please use the official registration link to secure your registration:\n\n👉 [${OFFICIAL_REGISTRATION_LINK}](${OFFICIAL_REGISTRATION_LINK})`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // INTENT E: DRESS CODE / WHAT TO WEAR / CLOTHES / ATTIRE
+  if (/(dress|wear|attire|clothes|outfit|what\s*to\s*wear|dress\s*code)/i.test(cleanQ)) {
+    return {
+      answer: `We encourage modest and comfortable dressing.\n\nPlease dress decently and appropriately for a worship gathering. Come prepared and comfortable.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // INTENT F: VENUE / LOCATION / WHERE IS IT HOLDING / CHURCH
+  if (/(where|venue|location|address|church|holding|having\s*the\s*event|which\s*church)/i.test(cleanQ) && !cleanQ.includes('locate') && !cleanQ.includes('direction') && !cleanQ.includes('get there') && !cleanQ.includes('map')) {
+    return {
+      answer: `The programme will hold at Ijeru Baptist Church.\n\nWe look forward to welcoming you!`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // INTENT G: DIRECTIONS / MAP / LOCATE / HOW TO GET THERE
+  if (/(locate|direction|directions|get\s*there|map|navigate|plus\s*code|arubiewe)/i.test(cleanQ)) {
+    if (kb.venueDetails && kb.venueDetails.includes('http')) {
+      return {
+        answer: `The venue is Ijeru Baptist Church.\n\nYou can use the official Google Maps location link to navigate directly to the church:\n\n${kb.venueDetails}`,
+        requiresFallback: false,
+        fallbackDetails: defaultFallbackDetails,
+      };
+    }
+    return {
+      answer: `The venue is Ijeru Baptist Church, Ogbomoso, Oyo State, Nigeria.\n\nYou can navigate using Google Maps to Ijeru Baptist Church, Ogbomoso.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // INTENT H: THEME / TOPIC / WORSHIP CULTURE / WHAT IS IT ABOUT
+  if (/(theme|topic|worship\s*culture|what\s*is\s*worship\s*encounter|about|concept|what\s*is\s*the\s*programme)/i.test(cleanQ)) {
+    if (cleanQ.includes('meaning') || cleanQ.includes('culture') || cleanQ.includes('about')) {
+      return {
+        answer: `The theme is WORSHIP CULTURE (The Way of Life).\n\nIt focuses on worship as more than an activity or event, but as a way of life. Worship Encounter 3.0 is a worship gathering designed to bring people together in an atmosphere of worship, spiritual encounter and fellowship.`,
+        requiresFallback: false,
+        fallbackDetails: defaultFallbackDetails,
+      };
+    }
+    return {
+      answer: `The theme of Worship Encounter 3.0 is WORSHIP CULTURE (The Way of Life).\n\nWorship Encounter 3.0 is a worship gathering designed to bring people together in an atmosphere of worship, spiritual encounter and fellowship.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // INTENT I: DATES / WHEN / TIME / SCHEDULE / DIFFERENCE BETWEEN DAYS
+  if (/(when|date|dates|time|schedule|night|days|difference|13th|14th|november)/i.test(cleanQ)) {
+    if (cleanQ.includes('difference') || cleanQ.includes('two days') || cleanQ.includes('both days')) {
+      return {
+        answer: `Worship Encounter 3.0 is a two-day gathering taking place on November 13th and 14th, 2026.\n\nBoth days form part of the programme. For specific session descriptions and timings, refer to the official programme schedule supplied by the organisers.`,
+        requiresFallback: false,
+        fallbackDetails: defaultFallbackDetails,
+      };
+    }
+    return {
+      answer: `The programme holds on November 13th and 14th, 2026 at 10:00 PM.`,
+      requiresFallback: false,
+      fallbackDetails: defaultFallbackDetails,
+    };
+  }
+
+  // ==========================================
+  // CHECK DYNAMIC FAQS FROM KNOWLEDGE BASE
+  // ==========================================
   const faqs = Array.isArray(kb.faqs) ? kb.faqs : [];
-
-  // 2. Search FAQs (High Precision Match)
   let bestFaq: any = null;
   let bestFaqScore = 0;
 
@@ -95,125 +270,34 @@ export function answerFromKnowledgeBaseUniversal(
     };
   }
 
-  // 3. Search Registration & Fee
-  const regTerms = ['register', 'registration', 'fee', 'free', 'cost', 'price', 'ticket', 'pass', 'compulsory', 'pay', 'paid', 'money', 'entry fee'];
-  if (regTerms.some((t) => cleanQ.includes(t))) {
-    const regFaq = faqs.find((f) => /fee|free|register|ticket|cost/i.test(f.question || ''));
-    if (regFaq) return { answer: regFaq.answer, requiresFallback: false, fallbackDetails: defaultFallbackDetails };
-
-    const regSec = (kb.sections || []).find((s) => /reg|ticket|fee|admission|entry/i.test(s.title || ''));
-    if (regSec) return { answer: `**${regSec.title}:**\n${regSec.content}`, requiresFallback: false, fallbackDetails: defaultFallbackDetails };
-
-    if (kb.overview && /free|registration/i.test(kb.overview)) {
-      return {
-        answer: `**Registration & Entry Policy:**\nRegistration for **${kb.eventTitle}** is 100% **FREE**, but **COMPULSORY** for all attendees to secure a seat and digital pass.`,
-        requiresFallback: false,
-        fallbackDetails: defaultFallbackDetails,
-      };
-    }
-  }
-
-  // 4. Search Organizers
-  const orgTerms = ['organizer', 'organiser', 'who organized', 'who is organising', 'who is organizing', 'host', 'bsf', 'baptist student fellowship'];
-  if (orgTerms.some((t) => cleanQ.includes(t))) {
-    const orgFaq = faqs.find((f) => /organi/i.test(f.question || ''));
-    if (orgFaq) return { answer: orgFaq.answer, requiresFallback: false, fallbackDetails: defaultFallbackDetails };
-
-    return {
-      answer: `**Event Organiser:**\n**${kb.eventTitle}** is organised by the **Baptist Student Fellowship (BSF)**, Ijeru Baptist Church, Ogbomoso.`,
-      requiresFallback: false,
-      fallbackDetails: defaultFallbackDetails,
-    };
-  }
-
-  // 5. Search Venue, Address, Directions & Plus Code
-  const venueTerms = ['venue', 'where', 'location', 'address', 'directions', 'locate', 'church', 'ijeru', 'ogbomoso', 'map', 'plus code', 'navigate', 'driving', 'bus', 'hall', 'arubiewe'];
-  if (venueTerms.some((t) => cleanQ.includes(t)) && kb.venueDetails) {
-    return {
-      answer: `**Venue & Location:**\n${kb.venueDetails}`,
-      requiresFallback: false,
-      fallbackDetails: defaultFallbackDetails,
-    };
-  }
-
-  // 6. Search Date, Schedule & Door Opening Times
-  const scheduleTerms = ['time', 'when', 'date', 'schedule', 'timetable', 'start', 'end', 'hours', 'night', 'doors', 'agenda', 'overnight'];
-  if (scheduleTerms.some((t) => cleanQ.includes(t)) && kb.scheduleDetails) {
-    return {
-      answer: `**Date & Schedule Details:**\n${kb.scheduleDetails}`,
-      requiresFallback: false,
-      fallbackDetails: defaultFallbackDetails,
-    };
-  }
-
-  // 7. Search Theme & Purpose
-  const themeTerms = ['theme', 'about', 'culture', 'meaning', 'worship culture', 'purpose', 'overview', 'concept', 'what is worship', 'lifestyle', 'singing'];
-  if (themeTerms.some((t) => cleanQ.includes(t))) {
-    const themeSec = (kb.sections || []).find((s) => /theme|worship culture/i.test(s.title || ''));
-    if (themeSec) return { answer: `**${themeSec.title}:**\n${themeSec.content}`, requiresFallback: false, fallbackDetails: defaultFallbackDetails };
-
-    if (kb.overview) {
-      return {
-        answer: `**About & Theme:**\n${kb.overview}`,
-        requiresFallback: false,
-        fallbackDetails: defaultFallbackDetails,
-      };
-    }
-  }
-
-  // 8. Search Dress Code
-  const dressTerms = ['dress', 'code', 'wear', 'attire', 'clothes', 'outfit', 'what to wear', 'guidelines'];
-  if (dressTerms.some((t) => cleanQ.includes(t)) && kb.dressCode) {
-    return {
-      answer: `**Dress Code Guidelines:**\n${kb.dressCode}`,
-      requiresFallback: false,
-      fallbackDetails: defaultFallbackDetails,
-    };
-  }
-
-  // 9. Search Custom Sections
+  // Check Custom Sections
   const sections = Array.isArray(kb.sections) ? kb.sections : [];
-  let bestSection: any = null;
-  let bestSectionScore = 0;
-
   for (const sec of sections) {
     const sTitle = (sec.title || '').toLowerCase();
     const sContent = (sec.content || '').toLowerCase();
-    let score = 0;
-
-    if (cleanQ.includes(sTitle) || sTitle.includes(cleanQ)) score += 8;
-    for (const t of tokens) {
-      if (sTitle.includes(t)) score += 3;
-      if (sContent.includes(t)) score += 1;
-    }
-
-    if (score > bestSectionScore) {
-      bestSectionScore = score;
-      bestSection = sec;
+    if (tokens.some((t) => sTitle.includes(t) || sContent.includes(t))) {
+      return {
+        answer: `**${sec.title}:**\n${sec.content}`,
+        requiresFallback: false,
+        fallbackDetails: defaultFallbackDetails,
+      };
     }
   }
 
-  if (bestSection && bestSectionScore >= 2) {
+  // Contact Request
+  if (/(contact|call|phone|whatsapp|email|reach|talk\s*to\s*someone|support)/i.test(cleanQ)) {
     return {
-      answer: `**${bestSection.title}:**\n${bestSection.content}`,
-      requiresFallback: false,
-      fallbackDetails: defaultFallbackDetails,
-    };
-  }
-
-  // 10. Contact Requests
-  const contactTerms = ['contact', 'call', 'phone', 'whatsapp', 'email', 'reach', 'talk to someone', 'admin', 'help desk', 'organizer phone', 'support'];
-  if (contactTerms.some((t) => cleanQ.includes(t))) {
-    return {
-      answer: `You can reach our official event team directly through any of the contact channels below:`,
+      answer: `You can reach the event organisers directly through the official contact channels below:`,
       requiresFallback: true,
       fallbackDetails: defaultFallbackDetails,
     };
   }
 
-  // 11. Graceful fallback for unanswerable questions
+  // ==========================================
+  // SECTION 8: HANDLING UNKNOWN QUESTIONS
+  // ==========================================
   return {
-    answer: kb.fallbackMessage || `I don't have that specific detail in our event guide right now. Please reach out to our event support team directly using the contact options below:`,
+    answer: `I don't have confirmed information about that at the moment. Please reach out to the event organisers for accurate clarification.`,
     requiresFallback: true,
     fallbackDetails: defaultFallbackDetails,
   };
