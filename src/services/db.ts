@@ -1271,30 +1271,38 @@ class DatabaseService {
 
     let kb: EventKnowledgeBase | null = null;
 
-    // 1. Check local storage
+    // 1. Check Firestore first (Authoritative source across refreshes)
     try {
-      const stored = localStorage.getItem(LOCAL_KNOWLEDGE_BASES_KEY);
-      if (stored) {
-        const kbMap: Record<string, EventKnowledgeBase> = JSON.parse(stored);
-        if (kbMap[eventIdOrSlug]) kb = kbMap[eventIdOrSlug];
-        else {
-          const found = Object.values(kbMap).find((k) => k.eventId === eventIdOrSlug || k.eventSlug === eventIdOrSlug);
-          if (found) kb = found;
+      const docSnap = await getDoc(doc(db, 'knowledge_bases', eventIdOrSlug));
+      if (docSnap.exists()) {
+        kb = docSnap.data() as EventKnowledgeBase;
+      } else {
+        const form = await this.getFormBySlug(eventIdOrSlug);
+        if (form && form.slug && form.slug !== eventIdOrSlug) {
+          const slugSnap = await getDoc(doc(db, 'knowledge_bases', form.slug));
+          if (slugSnap.exists()) {
+            kb = slugSnap.data() as EventKnowledgeBase;
+          }
         }
       }
     } catch (e) {}
 
-    // 2. Check Firestore if not cached
+    // 2. Fall back to local storage if offline or not in Firestore
     if (!kb) {
       try {
-        const docSnap = await getDoc(doc(db, 'knowledge_bases', eventIdOrSlug));
-        if (docSnap.exists()) {
-          kb = docSnap.data() as EventKnowledgeBase;
+        const stored = localStorage.getItem(LOCAL_KNOWLEDGE_BASES_KEY);
+        if (stored) {
+          const kbMap: Record<string, EventKnowledgeBase> = JSON.parse(stored);
+          if (kbMap[eventIdOrSlug]) kb = kbMap[eventIdOrSlug];
+          else {
+            const found = Object.values(kbMap).find((k) => k.eventId === eventIdOrSlug || k.eventSlug === eventIdOrSlug);
+            if (found) kb = found;
+          }
         }
       } catch (e) {}
     }
 
-    // 3. Fall back to finding matching form and creating a blank template
+    // 3. If still not found, generate a blank template
     if (!kb) {
       const form = await this.getFormBySlug(eventIdOrSlug);
       if (form) {
@@ -1320,6 +1328,7 @@ class DatabaseService {
         await this.saveKnowledgeBase(kb);
       }
     }
+
     if (kb) {
       if (!kb.sections) kb.sections = [];
       if (!kb.contacts) kb.contacts = [];
